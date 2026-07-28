@@ -1,15 +1,80 @@
 {
-  "name": "Atual-dev-dashboard",
+  "name": "atual-dev-dashboard",
   "version": "1.0.0",
   "description": "A modern desktop system monitoring dashboard built with Electron.",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "nodemon --exec electron . --dev"
+    "dev": "electron . --dev",
+    "nodemon": "nodemon --exec  electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
   },
   "author": "Atual.dev",
   "license": "MIT",
+  "build": {
+    "appId": "dev.atual.dashboard",
+    "productName": "Atual.dev Dashboard",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Atual.dev Dashboard"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    }
+  },
   "devDependencies": {
-    "electron": "^43.2.0"
+    "electron": "^43.2.0",
+    "electron-builder": "^25.1.8"
   }
 }

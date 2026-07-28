@@ -10,10 +10,16 @@
 #section-performance .section-header h2 {
   font-size: 20px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-secondary) 100%);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: gradShift 4s ease-in-out infinite;
+}
+@keyframes gradShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 /* ── Top Summary Cards ── */
@@ -27,7 +33,7 @@
   padding: 20px 22px;
   position: relative;
   overflow: hidden;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
   border: 1px solid rgba(255,255,255,0.04);
 }
 .perf-card::before {
@@ -40,12 +46,31 @@
   transition: opacity 0.4s ease;
   pointer-events: none;
 }
+.perf-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 40%, rgba(99,102,241,0.15), transparent 60%);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
 .perf-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(99,102,241,0.08);
-  border-color: rgba(99,102,241,0.12);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35), 0 0 0 1px rgba(99,102,241,0.12);
 }
 .perf-card:hover::before { opacity: 1; }
+.perf-card:hover::after { opacity: 1; animation: borderShimmer 2s linear infinite; }
+@keyframes borderShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
 
 .perf-header {
   display: flex;
@@ -69,8 +94,9 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.3px;
-  transition: color 0.3s ease;
+  transition: color 0.3s ease, transform 0.2s ease;
 }
+
 .perf-value-cpu { color: var(--accent-primary); }
 .perf-value-mem { color: var(--success); }
 
@@ -83,6 +109,7 @@
   overflow: hidden;
   margin-bottom: 10px;
   position: relative;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
 }
 .perf-bar-fill {
   height: 100%;
@@ -120,6 +147,10 @@ body.light-theme .perf-bar-track { background: rgba(0,0,0,0.08); }
 body.light-theme .perf-card { border-color: rgba(0,0,0,0.06); }
 body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
 
+
+
+
+
 /* ── Section Divider Title ── */
 .perf-section-title {
   display: flex;
@@ -128,18 +159,31 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
   margin: 22px 0 14px;
 }
 .perf-section-title span {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 1.5px;
   white-space: nowrap;
+  position: relative;
+  padding-left: 12px;
+}
+.perf-section-title span::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--gradient-accent);
 }
 .perf-section-title::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, var(--border-color), transparent);
+  background: linear-gradient(90deg, var(--border-color) 20%, transparent);
 }
 
 /* ── Ring Gauges ── */
@@ -155,13 +199,26 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
   flex-direction: column;
   align-items: center;
   border: 1px solid rgba(255,255,255,0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.gauge-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at center, rgba(99,102,241,0.03), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
 }
 .gauge-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-  border-color: rgba(99,102,241,0.10);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+  border-color: rgba(99,102,241,0.12);
 }
+.gauge-card:hover::before { opacity: 1; }
 
 .gauge-container {
   position: relative;
@@ -188,6 +245,7 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.5px;
+  transition: color 0.5s ease;
 }
 .gauge-label {
   font-size: 10px;
@@ -215,9 +273,13 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
   background: rgba(0,0,0,0.12);
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.03);
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.2s ease, border-color 0.2s ease;
 }
-.gauge-stat:hover { background: rgba(0,0,0,0.2); }
+.gauge-stat:hover {
+  background: rgba(0,0,0,0.2);
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,0.06);
+}
 .gauge-stat-label {
   font-size: 8px;
   font-weight: 700;
@@ -246,13 +308,87 @@ body.light-theme .gauge-card:hover { border-color: rgba(99,102,241,0.12); box-sh
 .perf-chart-card {
   padding: 18px 20px 16px;
   border: 1px solid rgba(255,255,255,0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
+
+/* ── Colored accent strip at top of each chart card ── */
+.perf-chart-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  opacity: 0.7;
+  transition: opacity 0.3s ease, height 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.perf-chart-card-cpu::before { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.perf-chart-card-mem::before { background: linear-gradient(90deg, #22c55e, #3b82f6); }
+.perf-chart-card-vm::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.perf-chart-card:hover::before { opacity: 1; height: 4px; }
+
+/* ── Color-adaptive radial overlay on hover ── */
+.perf-chart-card-cpu::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 30%, rgba(99,102,241,0.08), transparent 70%);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.perf-chart-card-cpu:hover::after { opacity: 1; animation: borderShimmer 2.5s linear infinite; }
+
+.perf-chart-card-mem::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 30%, rgba(34,197,94,0.08), transparent 70%);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.perf-chart-card-mem:hover::after { opacity: 1; animation: borderShimmer 2.5s linear infinite; }
+
+.perf-chart-card-vm::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 30%, rgba(245,158,11,0.08), transparent 70%);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.perf-chart-card-vm:hover::after { opacity: 1; animation: borderShimmer 2.5s linear infinite; }
+
 .perf-chart-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-  border-color: rgba(99,102,241,0.10);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+  border-color: rgba(99,102,241,0.12);
 }
+.perf-chart-card-cpu:hover { border-color: rgba(99,102,241,0.12); }
+.perf-chart-card-mem:hover { border-color: rgba(34,197,94,0.12); }
+.perf-chart-card-vm:hover { border-color: rgba(245,158,11,0.12); }
 
 .perf-chart-header {
   display: flex;
@@ -279,7 +415,45 @@ body.light-theme .gauge-card:hover { border-color: rgba(99,102,241,0.12); box-sh
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.2px;
   border: 1px solid rgba(99,102,241,0.08);
+  transition: all 0.2s ease;
 }
+.perf-chart-badge:hover {
+  background: rgba(99,102,241,0.15);
+  transform: translateY(-1px);
+}
+
+/* ── Color-specific current value badges ── */
+#chartCpuCurrent {
+  background: rgba(99,102,241,0.12);
+  color: #818cf8;
+  border-color: rgba(99,102,241,0.15);
+}
+#chartMemCurrent {
+  background: rgba(34,197,94,0.12);
+  color: #4ade80;
+  border-color: rgba(34,197,94,0.15);
+}
+#chartVmCurrent {
+  background: rgba(245,158,11,0.12);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.15);
+}
+/* Animated glow on the current value badge */
+@keyframes badgeGlow {
+  0%, 100% { box-shadow: 0 0 6px rgba(99,102,241,0); }
+  50% { box-shadow: 0 0 10px rgba(99,102,241,0.12); }
+}
+#chartCpuCurrent { animation: badgeGlow 3s ease-in-out infinite; }
+@keyframes badgeGlowMem {
+  0%, 100% { box-shadow: 0 0 6px rgba(34,197,94,0); }
+  50% { box-shadow: 0 0 10px rgba(34,197,94,0.12); }
+}
+#chartMemCurrent { animation: badgeGlowMem 3s ease-in-out infinite; }
+@keyframes badgeGlowVm {
+  0%, 100% { box-shadow: 0 0 6px rgba(245,158,11,0); }
+  50% { box-shadow: 0 0 10px rgba(245,158,11,0.12); }
+}
+#chartVmCurrent { animation: badgeGlowVm 3s ease-in-out infinite; }
 .perf-chart-badge-temp {
   font-size: 10px; padding: 2px 7px;
   background: rgba(239,68,68,0.08); color: var(--danger);
@@ -295,18 +469,51 @@ body.light-theme .gauge-card:hover { border-color: rgba(99,102,241,0.12); box-sh
 }
 .perf-chart-stats { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .perf-chart-stat {
-  font-size: 10px; font-weight: 500; padding: 2px 7px;
-  border-radius: 6px; background: rgba(0,0,0,0.12);
+  font-size: 10px; font-weight: 600; padding: 3px 9px;
+  border-radius: 6px; background: rgba(0,0,0,0.15);
   color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums;
   border: 1px solid rgba(255,255,255,0.03);
+  transition: all 0.2s ease;
 }
-.perf-chart-canvas-wrapper { width: 100%; height: 180px; position: relative; }
+.perf-chart-stat:hover {
+  background: rgba(0,0,0,0.25);
+  color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+.perf-chart-canvas-wrapper {
+  width: 100%; height: 180px; position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.08);
+}
+.perf-chart-card-cpu .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(99,102,241,0.04), rgba(0,0,0,0.08) 60%);
+}
+.perf-chart-card-mem .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(34,197,94,0.04), rgba(0,0,0,0.08) 60%);
+}
+.perf-chart-card-vm .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(245,158,11,0.04), rgba(0,0,0,0.08) 60%);
+}
 .perf-chart-canvas-wrapper canvas { width: 100%; height: 180px; display: block; }
 
 body.light-theme .perf-chart-card { border-color: rgba(0,0,0,0.06); }
-body.light-theme .perf-chart-card:hover { border-color: rgba(99,102,241,0.12); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
+body.light-theme .perf-chart-card-cpu:hover { border-color: rgba(99,102,241,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+body.light-theme .perf-chart-card-mem:hover { border-color: rgba(34,197,94,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+body.light-theme .perf-chart-card-vm:hover { border-color: rgba(245,158,11,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
 body.light-theme .perf-chart-stat { background: rgba(0,0,0,0.04); }
+body.light-theme .perf-chart-stat:hover { background: rgba(0,0,0,0.08); }
 body.light-theme .perf-chart-badge { background: rgba(99,102,241,0.06); }
+body.light-theme .perf-chart-canvas-wrapper { background: rgba(0,0,0,0.03); }
+body.light-theme .perf-chart-card-cpu .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(99,102,241,0.03), rgba(0,0,0,0.03) 60%);
+}
+body.light-theme .perf-chart-card-mem .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(34,197,94,0.03), rgba(0,0,0,0.03) 60%);
+}
+body.light-theme .perf-chart-card-vm .perf-chart-canvas-wrapper {
+  background: linear-gradient(180deg, rgba(245,158,11,0.03), rgba(0,0,0,0.03) 60%);
+}
 
 /* ── Chart Tooltip ── */
 .chart-tooltip {
@@ -365,9 +572,9 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   flex-direction: column;
   align-items: center;
   border: 1px solid rgba(255,255,255,0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
 }
-.perf-donut-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+.perf-donut-card:hover { transform: translateY(-3px); box-shadow: 0 12px 36px rgba(0,0,0,0.25); }
 .perf-donut-container {
   position: relative;
   width: 180px; height: 180px;
@@ -392,6 +599,12 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.04);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+.live-metrics:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.2);
+  border-color: rgba(99,102,241,0.08);
 }
 .live-metrics::before {
   content: '';
@@ -427,7 +640,11 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   border: 1px solid rgba(34,197,94,0.2);
   animation: liveBadgePulse 2s ease-in-out infinite;
 }
-@keyframes liveBadgePulse { 0%, 100% { border-color: rgba(34,197,94,0.2); } 50% { border-color: rgba(34,197,94,0.45); } }
+.live-badge:hover {
+  background: rgba(34,197,94,0.12);
+  transform: scale(1.05);
+}
+@keyframes liveBadgePulse { 0%, 100% { border-color: rgba(34,197,94,0.2); box-shadow: 0 0 8px rgba(34,197,94,0); } 50% { border-color: rgba(34,197,94,0.45); box-shadow: 0 0 12px rgba(34,197,94,0.08); } }
 .live-dot {
   width: 5px; height: 5px; border-radius: 50%; background: var(--success);
   box-shadow: 0 0 5px rgba(34,197,94,0.5); animation: liveDot 1.2s ease-in-out infinite;
@@ -483,6 +700,7 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   border-color: rgba(255,255,255,0.05);
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
+
 .metric-row-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .metric-key {
   font-size: 11px;
@@ -583,4 +801,5 @@ body.light-theme .perf-donut-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.06
   .live-metrics-footer { padding: 8px 14px 10px; }
   .perf-grid { grid-template-columns: 1fr; }
   .perf-chart-grid { grid-template-columns: 1fr; }
+
 }

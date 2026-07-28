@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runElevated: (cmd, args) => ipcRenderer.invoke('run-elevated', cmd, args),
   // Fetch CPU temperature
   getCpuTemp: () => ipcRenderer.invoke('get-cpu-temp'),
+  // Fetch GPU temperature
+  getGpuTemp: () => ipcRenderer.invoke('get-gpu-temp'),
   // Search npm/pip registries for package suggestions
   searchNpmPackages: (query) => ipcRenderer.invoke('search-npm-packages', query),
   searchPipPackages: (query) => ipcRenderer.invoke('search-pip-packages', query),

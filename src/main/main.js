@@ -14,11 +14,12 @@
    ============================================================ */
 
 // 📦 Import required modules
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const os = require('os');             // Operating system info (CPU, memory, etc.)
 const { exec } = require('child_process'); // Run system commands (disk, processes)
 const https = require('https');       // For npm registry API calls
+const fs = require('fs');             // File system (for file birthtime / registry hive dates)
 
 // ──────────────────────────────────────────────
 // 🪟 WINDOW SETUP
@@ -27,6 +28,13 @@ const https = require('https');       // For npm registry API calls
 let mainWindow; // The main application window
 
 function createWindow() {
+  // 🎨 Load app icon from PNG
+  const iconPath = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+  let appIcon = null;
+  try {
+    appIcon = nativeImage.createFromPath(iconPath);
+  } catch (e) { /* icon loading failed — fall back to default */ }
+
   mainWindow = new BrowserWindow({
     width: 1280,        // Window width in pixels
     height: 800,        // Window height in pixels
@@ -35,6 +43,7 @@ function createWindow() {
     frame: false,       // Remove OS window frame (we draw custom title bar)
     titleBarStyle: 'hidden',
     title: 'Atual.dev Dashboard',
+    icon: appIcon,      // Custom app icon from assets/icon.png
     backgroundColor: '#0a0a0f', // Background color while loading
 
     // 🔒 Security settings (important!)
@@ -174,6 +183,7 @@ function getSystemInfo() {
     cpuSpeed: cpuSpeedMhz,        // CPU clock speed in MHz
     totalMemory: os.totalmem(),   // Total RAM in bytes
     freeMemory: os.freemem(),     // Available RAM in bytes
+    usableMemory: getUsableMemory(), // Exact usable RAM from WMI (Windows) or estimated
     hostname: os.hostname(),      // Computer name
     uptime: os.uptime(),          // System running time (seconds)
     nodeVersion: process.versions.node,
@@ -187,7 +197,373 @@ function getSystemInfo() {
     allInterfaces,                // All interfaces (for Network section)
     homedir: os.homedir(),
     tmpdir: os.tmpdir(),
+    // GPU info (all GPUs with VRAM)
+    gpuInfo: getGpuInfo(),
+    // OS Edition & Version (Windows-style)
+    osEdition: getOsEdition(),
+    osDisplayVersion: getOsDisplayVersion(),
+    // Windows install date (from WMI)
+    osInstallDate: getOsInstallDate(),
+    // Windows activation status
+    osActivationStatus: getOsActivationStatus(),
+    // Storage summary (total across all drives)
+    storageSummary: getStorageSummary(),
   };
+}
+
+/**
+ * 💾 Get exact usable physical memory from WMI (Windows)
+ * Falls back to ~98% of total on non-Windows or if WMI fails
+ */
+let _cachedUsableMemory = null;
+function getUsableMemory() {
+  const platform = os.platform();
+  
+  // Non-Windows: estimate as 98% of total (same as before)
+  if (platform !== 'win32') {
+    return Math.round(os.totalmem() * 0.98);
+  }
+  
+  // Return cached value
+  if (_cachedUsableMemory) return _cachedUsableMemory;
+  
+  // Cache the estimate immediately to prevent re-spawning exec every refresh
+  const estimate = Math.round(os.totalmem() * 0.98);
+  _cachedUsableMemory = estimate;
+  
+  // Fetch TotalVisibleMemorySize from WMI (KB → bytes)
+  const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os){echo $os.TotalVisibleMemorySize}else{echo 0}}" 2>nul';
+  
+  exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
+    if (!err && out) {
+      const kb = parseInt(out.trim().split(/[\r\n]+/)[0]?.trim());
+      if (kb && kb > 0) {
+        _cachedUsableMemory = kb * 1024; // KB → bytes (overwrites estimate)
+      }
+    }
+    // On failure, the estimate stays cached
+  });
+  
+  // Return synchronous estimate while async query runs
+  return estimate;
+}
+
+/**
+ * ℹ️ Get Windows DisplayVersion (e.g. "25H2") from registry
+ * Falls back to os.release() on non-Windows or if registry read fails
+ */
+let _cachedOsDisplayVersion = null;
+function getOsDisplayVersion() {
+  const platform = os.platform();
+  
+  // Non-Windows: use os.release() directly
+  if (platform !== 'win32') {
+    return os.release();
+  }
+  
+  // Return cached value (even if 'Detecting...')
+  if (_cachedOsDisplayVersion) return _cachedOsDisplayVersion;
+  
+  _cachedOsDisplayVersion = 'Detecting...';
+  
+  // Method 1: reg query (most reliable, no PowerShell quoting issues)
+  // Output format: "    DisplayVersion    REG_SZ    24H2"
+  const regCmd = 'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v DisplayVersion 2>nul';
+  exec(regCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
+    if (!err && out) {
+      const match = out.match(/DisplayVersion\s+REG_\w+\s+(\S+)/i);
+      if (match && match[1]) {
+        _cachedOsDisplayVersion = match[1].trim();
+        return;
+      }
+    }
+    // Method 2: PowerShell (fallback)
+    const psCmd = 'powershell -NoProfile -Command "try{$v=(Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name DisplayVersion -ErrorAction Stop).DisplayVersion;if($v){echo $v}else{echo (Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name ReleaseId -ErrorAction SilentlyContinue).ReleaseId}}catch{echo \'\'}" 2>nul';
+    exec(psCmd, { timeout: 4000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+      if (!psErr && psOut) {
+        const v = psOut.trim().split(/[\r\n]+/)[0]?.trim();
+        if (v) {
+          _cachedOsDisplayVersion = v;
+          return;
+        }
+      }
+      // Final fallback: use os.release()
+      _cachedOsDisplayVersion = os.release();
+    });
+  });
+  
+  return _cachedOsDisplayVersion;
+}
+
+/**
+ * ℹ️ Get OS Edition / product name (e.g. "Windows 11 Home Single Language")
+ * On Windows, fetches from WMI. On other platforms, returns platform type.
+ */
+let _cachedOsEdition = null;
+function getOsEdition() {
+  if (_cachedOsEdition) return _cachedOsEdition;
+  const platform = os.platform();
+  
+  if (platform === 'win32') {
+    const result = 'Detecting...';
+    _cachedOsEdition = result;
+    // Try WMIC first (simpler, fewer quoting issues)
+    const wmicCmd = 'wmic os get Caption /value 2>nul';
+    exec(wmicCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
+      if (!err && out) {
+        const match = out.match(/^Caption=(.+)$/im);
+        if (match && match[1]) {
+          _cachedOsEdition = match[1].trim();
+          return;
+        }
+      }
+      // Fallback: try PowerShell Get-CimInstance
+      const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os){echo ($os.Caption + [char]124 + $os.Version)}else{echo Unknown}}" 2>nul';
+      exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+        if (!psErr && psOut) {
+          const line = psOut.trim().split(/[\r\n]+/)[0]?.trim();
+          if (line && line !== 'Unknown') {
+            const parts = line.split('|');
+            _cachedOsEdition = parts[0]?.trim() || ('Windows ' + os.release());
+            return;
+          }
+        }
+        // Final fallback
+        _cachedOsEdition = 'Windows ' + os.release();
+      });
+    });
+    return _cachedOsEdition;
+  } else if (platform === 'darwin') {
+    _cachedOsEdition = 'macOS ' + os.release();
+    return _cachedOsEdition;
+  } else {
+    _cachedOsEdition = 'Linux ' + os.release();
+    return _cachedOsEdition;
+  }
+}
+
+/**
+ * 💿 Get Windows installation date from WMI
+ * Returns date string like "2025-03-15" or null on non-Windows
+ */
+let _cachedOsInstallDate = null;
+function getOsInstallDate() {
+  const platform = os.platform();
+  if (platform !== 'win32') return null;
+  if (_cachedOsInstallDate) return _cachedOsInstallDate;
+  
+  // Method 1: Read birthtime of the SOFTWARE registry hive (synchronous, no subprocess)
+  // The SOFTWARE hive is created during Windows installation; its birthtime IS the install date
+  // This works on ALL Windows versions without PowerShell, WMIC, or any subprocess
+  try {
+    const stat = fs.statSync('C:\\Windows\\System32\\config\\SOFTWARE');
+    if (stat && stat.birthtime && isFinite(stat.birthtime.getTime())) {
+      const d = stat.birthtime;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateStr = y + '-' + m + '-' + day;
+      _cachedOsInstallDate = dateStr;
+      return dateStr;
+    }
+  } catch (e) {
+    // Permission denied or file not found — fall through to async methods
+  }
+  
+  // Async fallbacks (if fs.statSync failed)
+  const result = 'Detecting...';
+  _cachedOsInstallDate = result;
+  
+  // Method 2: WMIC (reliable, no locale-dependent output)
+  const wmicCmd = 'wmic os get InstallDate /value 2>nul';
+  exec(wmicCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (wmicErr, wmicOut) => {
+    if (!wmicErr && wmicOut) {
+      const match = wmicOut.match(/^InstallDate=(.+)$/im);
+      if (match && match[1]) {
+        const raw = match[1].trim();
+        if (raw.length >= 8) {
+          _cachedOsInstallDate = raw.substring(0, 4) + '-' + raw.substring(4, 6) + '-' + raw.substring(6, 8);
+          return;
+        }
+      }
+    }
+    
+    // Method 3: PowerShell (final fallback)
+    const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os -and $os.InstallDate){echo $os.InstallDate}else{echo \'\'}}" 2>nul';
+    exec(psCmd, { timeout: 4000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+      if (!psErr && psOut) {
+        const raw = psOut.trim().split(/[\r\n]+/)[0]?.trim();
+        if (raw && raw.length >= 8) {
+          _cachedOsInstallDate = raw.substring(0, 4) + '-' + raw.substring(4, 6) + '-' + raw.substring(6, 8);
+          return;
+        }
+      }
+      // Everything failed
+      _cachedOsInstallDate = 'Unknown';
+    });
+  });
+  
+  return result;
+}
+
+/**
+ * 🔑 Get Windows activation status from SoftwareLicensingProduct WMI
+ * Returns 'Activated', 'Unlicensed', 'Grace Period', etc., or null on non-Windows
+ */
+let _cachedOsActivation = null;
+function getOsActivationStatus() {
+  const platform = os.platform();
+  if (platform !== 'win32') return null;
+  if (_cachedOsActivation) return _cachedOsActivation;
+  
+  const result = 'Detecting...';
+  _cachedOsActivation = result;
+  
+  // Method 1: Try cscript + slmgr.vbs (very reliable on all Windows, though slightly slow)
+  // slmgr /dli outputs licensing info; we check for 'Licensed' status
+  const slmgrCmd = 'cscript //nologo "%windir%\\system32\\slmgr.vbs" /dli 2>nul';
+  exec(slmgrCmd, { timeout: 10000, maxBuffer: 1024 * 1024 }, (err, out) => {
+    if (!err && out) {
+      if (/License Status:\s*Licensed/i.test(out)) {
+        _cachedOsActivation = 'Activated';
+        return;
+      }
+      if (/License Status:\s*(.+)$/im.test(out)) {
+        const status = out.match(/License Status:\s*(.+)$/im)[1].trim();
+        if (status) {
+          _cachedOsActivation = status;
+          return;
+        }
+      }
+      // If slmgr ran but we couldn't parse, check for 'ERROR' or 'not activated'
+      if (/not activated|error/i.test(out)) {
+        _cachedOsActivation = 'Unlicensed';
+        return;
+      }
+    }
+    
+    // Method 2: PowerShell SoftwareLicensingProduct (fallback)
+    const psCmd = 'powershell -NoProfile -Command "$p=Get-CimInstance SoftwareLicensingProduct -ErrorAction SilentlyContinue | Where-Object { $_.ApplicationID -eq \'55c92734-d682-4d71-983e-d6ec3f16059f\' } | Sort-Object { [bool]$_.PartialProductKey } -Descending | Select -First 1; if($p){ @(\'Unlicensed\',\'Activated\',\'OOB Grace\',\'OOT Grace\',\'NonGenuine Grace\',\'Notification\',\'Extended Grace\')[$p.LicenseStatus] } else { echo \'Unlicensed\' }" 2>nul';
+    exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+      if (!psErr && psOut) {
+        const v = psOut.trim().split(/[\r\n]+/)[0]?.trim();
+        if (v) {
+          _cachedOsActivation = v;
+          return;
+        }
+      }
+      // Final fallback
+      _cachedOsActivation = 'Unknown';
+    });
+  });
+  
+  return result;
+}
+
+/**
+ * 🎮 Get GPU / graphics card information
+ * Uses Electron's built-in GPU info API, with WMI fallback on Windows for full names
+ */
+let _cachedGpuInfo = null;
+let _wmiGpuFetched = false;
+function getGpuInfo() {
+  if (_cachedGpuInfo) return _cachedGpuInfo;
+  try {
+    const result = { allGpus: 'Detecting...' };
+    _cachedGpuInfo = result;
+    
+    // Try Electron's GPU info API first
+    if (app.getGPUInfo) {
+      app.getGPUInfo('complete').then(info => {
+        // If WMI already fetched better names, don't overwrite
+        if (_wmiGpuFetched && _cachedGpuInfo?.allGpus && _cachedGpuInfo.allGpus !== 'Detecting...') return;
+        
+        if (info && info.gpuDevice && info.gpuDevice.length > 0) {
+          const gpuList = info.gpuDevice.map(gpu => {
+            const memMB = gpu.dedicatedMemory ? Math.round(gpu.dedicatedMemory / 1024 / 1024) : 0;
+            const memStr = memMB > 0 ? ` (${memMB >= 1024 ? (memMB / 1024).toFixed(0) + ' GB' : memMB + ' MB'})` : '';
+            return (gpu.deviceName || ('GPU ' + gpu.deviceId)) + memStr;
+          });
+          _cachedGpuInfo = { allGpus: gpuList.join(', ') };
+        } else if (info && info.auxAttributes) {
+          const aux = info.auxAttributes;
+          const name = aux.deviceName || aux.GPUDeviceName || 'Unknown GPU';
+          _cachedGpuInfo = { allGpus: name };
+        }
+      }).catch(() => {
+        if (!_wmiGpuFetched) fetchGpuViaWmi();
+      });
+    }
+    
+    // On Windows, also try WMI for complete GPU names (gets full model names from driver)
+    if (os.platform() === 'win32' && !_wmiGpuFetched) {
+      fetchGpuViaWmi();
+    }
+    
+    return _cachedGpuInfo;
+  } catch (e) {
+    return { allGpus: 'Unknown' };
+  }
+}
+
+/**
+ * Fetch GPU info via WMI on Windows (more complete names than Electron's API)
+ */
+function fetchGpuViaWmi() {
+  if (os.platform() !== 'win32') return;
+  _wmiGpuFetched = true;
+  const psCmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne $null } | ForEach-Object { $_.Name + \'|\' + [math]::Max($_.AdapterRAM, 0).ToString() }" 2>nul';
+  exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
+    if (!err && out && out.trim()) {
+      const lines = out.trim().split('\n').filter(l => l.trim());
+      if (lines.length > 0) {
+        const gpuList = lines.map(line => {
+          const parts = line.split('|');
+          const name = parts[0]?.trim() || '';
+          const ramBytes = parseInt(parts[1]) || 0;
+          const memMB = ramBytes > 0 ? Math.round(ramBytes / 1024 / 1024) : 0;
+          const memStr = memMB > 0 ? ` (${memMB >= 1024 ? (memMB / 1024).toFixed(0) + ' GB' : memMB + ' MB'})` : '';
+          return name ? name + memStr : '';
+        }).filter(Boolean);
+        
+        if (gpuList.length > 0) {
+          _cachedGpuInfo = { allGpus: gpuList.join(', ') };
+        }
+      }
+    }
+  });
+}
+
+/**
+ * 💾 Get storage summary (total across all drives)
+ * Cached to avoid running disk commands too frequently
+ */
+let _cachedStorageSummary = { total: 0, used: 0, free: 0 };
+let _storageSummaryFetched = false;
+let _storageSummaryPending = false;
+
+function getStorageSummary() {
+  if (_storageSummaryFetched || _storageSummaryPending) return _cachedStorageSummary;
+  _storageSummaryPending = true;
+  
+  // Trigger async fetch of disk info which will update the cache
+  getDiskInfo().then(disks => {
+    let total = 0, used = 0, free = 0;
+    for (const d of disks) {
+      if (d.total > 0) {
+        total += d.total;
+        used += d.used;
+        free += d.free;
+      }
+    }
+    _cachedStorageSummary = { total, used, free, storageFetched: true };
+    _storageSummaryFetched = true;
+  }).catch(() => {
+    _cachedStorageSummary = { total: 0, used: 0, free: 0, storageFetched: true };
+    _storageSummaryFetched = true;
+  });
+  
+  return _cachedStorageSummary;
 }
 
 /**
@@ -200,7 +576,7 @@ function getDiskInfo() {
     const platform = os.platform();
 
     // 🖥️ Platform-specific commands
-    // Windows: Use WMIC to list drives
+    // Windows: Try PowerShell first (WMIC is deprecated on newer Win11), fall back to WMIC
     // macOS/Linux: Use 'df' to show disk free space
     let cmd;
     if (platform === 'win32') {
@@ -213,7 +589,32 @@ function getDiskInfo() {
 
     // ⚙️ Execute the command (with timeout & maxBuffer for safety)
     exec(cmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-      if (error) { resolve([]); return; }
+      if (error) {
+        // Primary command failed — try PowerShell fallback on Windows
+        if (platform === 'win32') {
+          const psCmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 3 } | ForEach-Object { $_.DeviceID + \',\' + $_.Size + \',\' + $_.FreeSpace }" 2>nul';
+          exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+            if (psErr || !psOut) { resolve([]); return; }
+            const disks = [];
+            const lines = psOut.trim().split('\n').filter(l => l.trim());
+            for (const line of lines) {
+              const parts = line.split(',');
+              if (parts.length >= 3) {
+                const caption = parts[0]?.trim() || '';
+                const size = parseInt(parts[1]) || 0;
+                const free = parseInt(parts[2]) || 0;
+                if (caption && size > 0) {
+                  disks.push({ mount: caption, total: size, free, used: size - free });
+                }
+              }
+            }
+            resolve(disks);
+          });
+          return;
+        }
+        resolve([]);
+        return;
+      }
 
       const disks = [];
       try {
@@ -647,6 +1048,75 @@ function getCpuTemperature() {
           } catch (e) { resolve(-1); }
         }
       );
+    }
+  });
+}
+
+// ──────────────────────────────────────────────
+// 🎮 GPU TEMPERATURE
+// ──────────────────────────────────────────────
+
+/**
+ * Get GPU temperature (platform-specific)
+ * Returns temperature in Celsius, or null if unavailable
+ * Tries: nvidia-smi → PowerShell WMI → null
+ */
+function getGpuTemperature() {
+  return new Promise((resolve) => {
+    const platform = os.platform();
+
+    if (platform === 'win32') {
+      // Method 1: nvidia-smi (best for NVIDIA GPUs, very fast)
+      const nvidiaCmd = 'nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>nul';
+      exec(nvidiaCmd, { timeout: 3000, maxBuffer: 1024 * 1024 }, (err1, out1) => {
+        if (!err1 && out1) {
+          const v = parseInt(out1.trim());
+          if (v && v > 0 && v < 120) { resolve(v); return; }
+        }
+
+        // Method 2: PowerShell - query Win32_PerfFormattedData_GPU (AMD/Intel)
+        // Note: This WMI class may not exist on all systems
+        const psCmd = 'powershell -NoProfile -Command "try{$g=Get-CimInstance -Namespace root\\cimv2\\drivers\\gpu -ClassName Win32_PerfFormattedData_GPU_Adapter -ErrorAction Stop;if($g -and $g.Length -gt 0){$maxTemp=0;foreach($adapter in $g){if($adapter.CurrentTemperature -gt $maxTemp){$maxTemp=$adapter.CurrentTemperature}};if($maxTemp -gt 0){echo $maxTemp}else{-1}}else{-1}}catch{echo -1}" 2>nul';
+        exec(psCmd, { timeout: 3000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+          if (!psErr && psOut) {
+            const v = parseInt(psOut.trim());
+            if (v && v > 0 && v < 120) { resolve(v); return; }
+          }
+          resolve(null);
+        });
+      });
+    } else if (platform === 'linux') {
+      // Linux: Try nvidia-smi, then sensors (AMD), then fallback
+      const nvidiaCmd = 'nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null';
+      exec(nvidiaCmd, { timeout: 3000, maxBuffer: 1024 * 1024 }, (err1, out1) => {
+        if (!err1 && out1) {
+          const v = parseInt(out1.trim());
+          if (v && v > 0 && v < 120) { resolve(v); return; }
+        }
+        // Try lm-sensors for AMD GPUs
+        exec('sensors 2>/dev/null | grep -i "edge\|junction\|gpu" | head -1 | grep -oP "\\+\\d+\\.\\d+°C" | head -1',
+          { timeout: 3000 }, (sensErr, sensOut) => {
+            if (!sensErr && sensOut) {
+              const v = parseInt(sensOut.trim());
+              if (v && v > 0 && v < 120) { resolve(v); return; }
+            }
+            resolve(null);
+          }
+        );
+      });
+    } else if (platform === 'darwin') {
+      // macOS: Try system_profiler for GPU temperature (limited)
+      exec('system_profiler SPDisplaysDataType 2>/dev/null | grep -i "temperature" | head -1',
+        { timeout: 3000 }, (err, out) => {
+          if (!err && out) {
+            const match = out.match(/(\d+)/);
+            if (match) { const v = parseInt(match[1]); if (v > 0 && v < 120) { resolve(v); return; } }
+          }
+          resolve(null);
+        }
+      );
+    } else {
+      resolve(null);
     }
   });
 }
@@ -1312,6 +1782,10 @@ function getProcessList() {
 // 🚀 APP INITIALIZATION
 // ──────────────────────────────────────────────
 
+// Disable disk cache to suppress "Unable to move cache" / "Gpu Cache Creation failed" errors
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('disk-cache-size', '0');
+
 // 'whenReady' fires after Electron has finished starting up
 app.whenReady().then(() => {
   createWindow();
@@ -1342,6 +1816,7 @@ app.whenReady().then(() => {
   ipcMain.handle('check-npm-admin', () => checkNpmNeedsAdmin());
   ipcMain.handle('run-elevated', (_, cmd, args) => runCommandElevated(cmd, args));
   ipcMain.handle('get-cpu-temp', () => getCpuTemperature());
+  ipcMain.handle('get-gpu-temp', () => getGpuTemperature());
   ipcMain.handle('get-network-speed', () => getNetworkSpeed());
   ipcMain.handle('get-battery-details', () => getBatteryDetails());
   ipcMain.handle('get-virtual-memory', () => getVirtualMemory());

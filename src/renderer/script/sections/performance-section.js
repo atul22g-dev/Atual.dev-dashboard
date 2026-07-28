@@ -89,4 +89,7 @@ export function updatePerformancePage(info) {
       $('gaugeVmTotal').textContent = formatBytes(info.virtualMemory.total);
     }
   }
+
 }
+
+

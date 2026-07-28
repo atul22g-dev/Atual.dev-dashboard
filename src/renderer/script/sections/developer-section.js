@@ -298,6 +298,31 @@ export function showActionLog(message) {
   setTimeout(() => { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
 }
 
+/**
+ * 🔑 Automatically retry a failed package action with elevated (admin) privileges
+ * Shows the OS elevation prompt (UAC on Windows). Returns the result object.
+ */
+async function retryWithElevation(action, type, name) {
+  let elevatedCmd;
+  if (type === 'npm') {
+    if (action === 'install') elevatedCmd = `npm install -g ${name}`;
+    else if (action === 'update') elevatedCmd = `npm install -g ${name}@latest`;
+    else if (action === 'delete') elevatedCmd = `npm uninstall -g ${name}`;
+  } else if (type === 'pip') {
+    const isWin = navigator.platform && navigator.platform.toLowerCase().includes('win');
+    const pip = isWin ? 'pip' : 'pip3';
+    if (action === 'install') elevatedCmd = `${pip} install ${name}`;
+    else if (action === 'update') elevatedCmd = `${pip} install --upgrade ${name}`;
+    else if (action === 'delete') elevatedCmd = `${pip} uninstall -y ${name}`;
+  }
+  if (!elevatedCmd) return null;
+  try {
+    return await window.electronAPI.runElevated(elevatedCmd, []);
+  } catch (err) {
+    return { success: false, message: err.message || 'Elevation failed' };
+  }
+}
+
 export async function handlePackageAction(action, pkgName) {
   const body = $('pkgListBody');
   const rows = body?.querySelectorAll('.pkg-row');
@@ -316,16 +341,43 @@ export async function handlePackageAction(action, pkgName) {
       showActionLog(result.message || 'Done.');
       lastFailedAction = null;
       setTimeout(() => loadPackages(), 1500);
-    } else {
-      showStatus(`Failed: ${result.message}`, true);
-      showActionLog(result.message || 'Unknown error');
-      lastFailedAction = { action, type: currentPkgType, name: pkgName };
-      const isPermissionError = result.message.toLowerCase().includes('eacces') ||
-        result.message.toLowerCase().includes('eperm') ||
-        result.message.toLowerCase().includes('access is denied') ||
-        result.message.toLowerCase().includes('permission denied');
-      if (isPermissionError) showAdminElevationHint(action, pkgName);
+      return;
     }
+    
+    // Check if the failure is a permission error
+    const msg = (result.message || '').toLowerCase();
+    const isPermissionError = msg.includes('eacces') ||
+      msg.includes('eperm') ||
+      msg.includes('access is denied') ||
+      msg.includes('permission denied');
+    
+    if (isPermissionError) {
+      // Auto-retry with elevated privileges
+      showStatus(`Permission denied. Retrying with admin privileges...`);
+      showActionLog(`Permission error: ${result.message}\nAttempting elevation...`);
+      const elevatedResult = await retryWithElevation(action, currentPkgType, pkgName);
+      if (elevatedResult && elevatedResult.success) {
+        const verb = action === 'delete' ? 'Uninstalled' : action === 'update' ? 'Updated' : 'Processed';
+        showStatus(`✅ ${verb} ${pkgName} with admin privileges!`);
+        showActionLog(elevatedResult.message || 'Done.');
+        lastFailedAction = null;
+        setTimeout(() => loadPackages(), 1500);
+        return;
+      } else {
+        // Elevation failed or declined — show the hint for manual retry
+        const errMsg = elevatedResult?.message || result.message;
+        showStatus(`Failed: ${errMsg}`, true);
+        showActionLog(errMsg || 'Unknown error');
+        lastFailedAction = { action, type: currentPkgType, name: pkgName };
+        showAdminElevationHint(action, pkgName);
+        return;
+      }
+    }
+    
+    // Non-permission error
+    showStatus(`Failed: ${result.message}`, true);
+    showActionLog(result.message || 'Unknown error');
+    lastFailedAction = { action, type: currentPkgType, name: pkgName };
   } catch (err) {
     showStatus(`Error: ${err.message}`, true);
   } finally {
@@ -354,8 +406,9 @@ export async function checkAdminAndElevation() {
     if (npmNeedsAdmin) {
       adminText.textContent = '⚠️ Some commands may need administrator privileges';
       indicator.className = 'pkg-admin-indicator warning';
-      if (note) note.textContent = 'npm/pip global directory requires admin rights.';
-      if (elevateBtn) elevateBtn.style.display = 'flex';
+      if (note) note.textContent = 'npm/pip global directory requires admin rights. Click \"Elevate\" after a failed action to retry with admin privileges.';
+      // Only show Elevate button if there's a failed action to retry
+      if (elevateBtn) elevateBtn.style.display = lastFailedAction ? 'flex' : 'none';
     } else {
       // Admin not needed — hide the bar entirely (no issue to report)
       bar.style.display = 'none';
@@ -539,16 +592,43 @@ export async function handleInstallPackage() {
       input.value = '';
       lastFailedAction = null;
       setTimeout(() => loadPackages(), 1500);
-    } else {
-      showStatus(`Failed to install ${pkgName}: ${result.message}`, true);
-      showActionLog(result.message || 'Unknown error');
-      lastFailedAction = { action: 'install', type: currentPkgType, name: pkgName };
-      const isPermissionError = result.message.toLowerCase().includes('eacces') ||
-        result.message.toLowerCase().includes('eperm') ||
-        result.message.toLowerCase().includes('access is denied') ||
-        result.message.toLowerCase().includes('permission denied');
-      if (isPermissionError) showAdminElevationHint('install', pkgName);
+      return;
     }
+    
+    // Check if the failure is a permission error
+    const msg = (result.message || '').toLowerCase();
+    const isPermissionError = msg.includes('eacces') ||
+      msg.includes('eperm') ||
+      msg.includes('access is denied') ||
+      msg.includes('permission denied');
+    
+    if (isPermissionError) {
+      // Auto-retry with elevated privileges
+      showStatus(`Permission denied. Retrying with admin privileges...`);
+      showActionLog(`Permission error: ${result.message}\nAttempting elevation...`);
+      const elevatedResult = await retryWithElevation('install', currentPkgType, pkgName);
+      if (elevatedResult && elevatedResult.success) {
+        showStatus(`✅ ${pkgName} installed with admin privileges!`);
+        showActionLog(elevatedResult.message || 'Done.');
+        input.value = '';
+        lastFailedAction = null;
+        setTimeout(() => loadPackages(), 1500);
+        return;
+      } else {
+        // Elevation failed or declined
+        const errMsg = elevatedResult?.message || result.message;
+        showStatus(`Failed to install ${pkgName}: ${errMsg}`, true);
+        showActionLog(errMsg || 'Unknown error');
+        lastFailedAction = { action: 'install', type: currentPkgType, name: pkgName };
+        showAdminElevationHint('install', pkgName);
+        return;
+      }
+    }
+    
+    // Non-permission error
+    showStatus(`Failed to install ${pkgName}: ${result.message}`, true);
+    showActionLog(result.message || 'Unknown error');
+    lastFailedAction = { action: 'install', type: currentPkgType, name: pkgName };
   } catch (err) { showStatus(`Error: ${err.message}`, true); }
   finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3v14M3 10h14"/></svg> Install'; }

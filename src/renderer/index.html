@@ -1,22 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
   <title>Atual.dev Dashboard</title>
-  <link rel="stylesheet" href="style/style.css">
+  <link rel="icon" type="image/png" href="../../assets/icon.png" />
+  <link rel="stylesheet" href="style/style.css" />
   <!-- 📐 Section-specific styles in style/sections/ -->
-  <link rel="stylesheet" href="style/sections/overview.css">
-  <link rel="stylesheet" href="style/sections/system.css">
-  <link rel="stylesheet" href="style/sections/performance.css">
-  <link rel="stylesheet" href="style/sections/network.css">
-  <link rel="stylesheet" href="style/sections/disk.css">
-  <link rel="stylesheet" href="style/sections/processes.css">
-  <link rel="stylesheet" href="style/sections/battery.css">
-  <link rel="stylesheet" href="style/sections/developer.css">
+  <link rel="stylesheet" href="style/sections/overview.css" />
+  <link rel="stylesheet" href="style/sections/performance.css" />
+  <link rel="stylesheet" href="style/sections/network.css" />
+  <link rel="stylesheet" href="style/sections/disk.css" />
+  <link rel="stylesheet" href="style/sections/processes.css" />
+  <link rel="stylesheet" href="style/sections/battery.css" />
+  <link rel="stylesheet" href="style/sections/developer.css" />
 </head>
 
 <body>
@@ -26,12 +26,7 @@
   <header class="title-bar" id="titleBar">
     <div class="title-bar-drag">
       <div class="app-brand">
-        <svg class="app-logo" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="4" ry="4" />
-          <line x1="3" y1="9" x2="21" y2="9" />
-          <line x1="9" y1="3" x2="9" y2="21" />
-        </svg>
+        <img src="../../assets/icon.png" style="width: 3rem;" alt="App Icon" />
         <span class="app-title">Atual.dev Dashboard</span>
       </div>
     </div>
@@ -61,17 +56,14 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo">
-          <svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="16" cy="16" r="14" />
-            <path d="M10 16 L14 20 L22 12" />
-          </svg>
+          <img src="../../assets/icon.png" style="width: 3rem;" alt="App Icon" />
         </div>
         <h1 class="sidebar-title">Atual.dev</h1>
         <span class="sidebar-subtitle">Dashboard</span>
       </div>
 
       <nav class="sidebar-nav">
-        <!-- 📊 Overview -->
+        <!-- 📊 Overview (combined with System) -->
         <a href="#" class="nav-item active" data-section="overview">
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"
             stroke-linecap="round" stroke-linejoin="round">
@@ -81,17 +73,6 @@
             <rect x="2" y="11" width="7" height="7" rx="1.5" />
           </svg>
           <span>Overview</span>
-        </a>
-        <!-- 🖥️ System - Monitor/display icon -->
-        <a href="#" class="nav-item" data-section="system">
-          <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="16" height="12" rx="2" />
-            <line x1="8" y1="15" x2="12" y2="15" />
-            <line x1="10" y1="15" x2="10" y2="17" />
-            <line x1="5" y1="17" x2="15" y2="17" />
-          </svg>
-          <span>System</span>
         </a>
         <!-- ⚡ Performance - Lightning/chart icon -->
         <a href="#" class="nav-item" data-section="performance">
@@ -182,7 +163,6 @@
         </button>
       </div>
 
-
       <div class="sidebar-footer">
         <div class="status-indicator">
           <span class="status-dot"></span>
@@ -200,7 +180,9 @@
         <section class="dashboard-section active" id="section-overview">
           <div class="section-header">
             <h2>Dashboard Overview</h2>
-            <p class="section-description">Real-time system monitoring and metrics</p>
+            <p class="section-description">
+              Real-time system monitoring and metrics
+            </p>
           </div>
           <div class="metrics-grid">
             <div class="metric-card glass">
@@ -215,8 +197,9 @@
                   <line x1="20" y1="12" x2="22" y2="12" />
                 </svg>
               </div>
-              <div class="metric-info"><span class="metric-label">CPU Cores</span><span class="metric-value"
-                  id="cpuCores">-</span></div>
+              <div class="metric-info">
+                <span class="metric-label">CPU Load</span><span class="metric-value" id="cpuLoadOverview">-</span>
+              </div>
             </div>
             <div class="metric-card glass">
               <div class="metric-icon memory-icon">
@@ -229,22 +212,25 @@
                   <line x1="18.5" y1="9" x2="18.5" y2="15" />
                 </svg>
               </div>
-              <div class="metric-info"><span class="metric-label">Total Memory</span><span class="metric-value"
-                  id="totalMemory">-</span></div>
+              <div class="metric-info">
+                <span class="metric-label">Memory Used</span><span class="metric-value" id="memUsedOverview">-</span>
+              </div>
             </div>
+
             <div class="metric-card glass">
-              <div class="metric-icon platform-icon">
+              <div class="metric-icon gpu-temp-icon">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"
                   stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="3" width="20" height="15" rx="2" />
-                  <line x1="12" y1="18" x2="12" y2="21" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="10" y1="12" x2="14" y2="12" />
-                  <circle cx="12" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 3" />
+                  <path d="M8 3l-4 4" />
+                  <path d="M16 3l4 4" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
                 </svg>
               </div>
-              <div class="metric-info"><span class="metric-label">Platform</span><span class="metric-value"
-                  id="platform">-</span></div>
+              <div class="metric-info">
+                <span class="metric-label">GPU Temp</span><span class="metric-value" id="gpuTempOverview">--°C</span>
+              </div>
             </div>
             <div class="metric-card glass">
               <div class="metric-icon uptime-icon">
@@ -255,100 +241,63 @@
                   <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.3" />
                 </svg>
               </div>
-              <div class="metric-info"><span class="metric-label">System Uptime</span><span class="metric-value"
-                  id="uptime">-</span></div>
-            </div>
-          </div>
-
-          <div class="info-panels">
-            <div class="info-panel glass">
-              <h3>Environment</h3>
-              <div class="info-rows">
-                <div class="info-row"><span class="info-key">Electron</span><span class="info-value"
-                    id="electronVersion">-</span></div>
-                <div class="info-row"><span class="info-key">Chrome</span><span class="info-value"
-                    id="chromeVersion">-</span></div>
-                <div class="info-row"><span class="info-key">Node.js</span><span class="info-value"
-                    id="nodeVersion">-</span></div>
-                <div class="info-row"><span class="info-key">Hostname</span><span class="info-value"
-                    id="hostname">-</span></div>
-              </div>
-            </div>
-            <div class="info-panel glass">
-              <h3>Memory Usage</h3>
-              <div class="memory-visual">
-                <div class="memory-bar-container">
-                  <div class="memory-bar" id="memoryBar"></div>
-                </div>
-                <div class="memory-stats">
-                  <div class="memory-stat"><span class="stat-label">Used</span><span class="stat-value"
-                      id="usedMemory">-</span></div>
-                  <div class="memory-stat"><span class="stat-label">Free</span><span class="stat-value"
-                      id="freeMemory">-</span></div>
-                  <div class="memory-stat"><span class="stat-label">Total</span><span class="stat-value"
-                      id="memoryTotal">-</span></div>
-                  <div class="memory-stat memory-stat-vm"><span class="stat-label">Virtual Mem</span><span class="stat-value"
-                      id="virtualMemoryTotal">-</span></div>
-                </div>
+              <div class="metric-info">
+                <span class="metric-label">System Uptime</span><span class="metric-value" id="uptime">-</span>
               </div>
             </div>
           </div>
-        </section>
 
-        <!-- ── System Section ── -->
-        <section class="dashboard-section" id="section-system">
-          <div class="section-header">
-            <h2>System Information</h2>
-            <p class="section-description">Detailed system configuration and specifications</p>
-          </div>
+          <!-- System Details Cards (merged from System section) -->
           <div class="system-grid">
             <div class="system-card glass">
-              <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <h3>
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
                   <rect x="3" y="2" width="14" height="16" rx="2" />
                   <circle cx="10" cy="8" r="2" />
                   <path d="M6 16 Q6 12 10 12 Q14 12 14 16" />
-                </svg> System</h3>
+                </svg>
+                Device Info
+              </h3>
               <div class="info-rows">
-                <div class="info-row"><span class="info-key">OS Type</span><span class="info-value" id="osType">-</span>
+                <div class="info-row">
+                  <span class="info-key">Device Name</span><span class="info-value" id="deviceName">-</span>
                 </div>
-                <div class="info-row"><span class="info-key">OS Release</span><span class="info-value"
-                    id="osRelease">-</span></div>
-                <div class="info-row"><span class="info-key">Architecture</span><span class="info-value"
-                    id="arch">-</span></div>
-                <div class="info-row"><span class="info-key">Hostname</span><span class="info-value"
-                    id="hostnameSys">-</span></div>
+                <div class="info-row">
+                  <span class="info-key">Processor</span><span class="info-value" id="processor">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-key">Installed RAM</span><span class="info-value" id="installedRam">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-key">Graphics Card</span><span class="info-value" id="graphicsCard">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-key">Storage</span><span class="info-value" id="storage">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-key">System Type</span><span class="info-value" id="systemType">-</span>
+                </div>
               </div>
             </div>
             <div class="system-card glass">
-              <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect x="2" y="4" width="16" height="12" rx="2" />
-                  <rect x="6" y="7" width="8" height="6" rx="1" />
-                  <line x1="10" y1="6" x2="10" y2="7" />
-                  <line x1="10" y1="13" x2="10" y2="14" />
-                </svg> CPU</h3>
+              <h3>
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="14" height="14" rx="2" />
+                  <line x1="3" y1="9" x2="17" y2="9" />
+                  <line x1="9" y1="3" x2="9" y2="17" />
+                </svg>
+                Windows Info
+              </h3>
               <div class="info-rows">
-                <div class="info-row"><span class="info-key">Model</span><span class="info-value" id="cpuModel">-</span>
+                <div class="info-row">
+                  <span class="info-key">Windows Edition</span><span class="info-value" id="windowsEdition">-</span>
                 </div>
-                <div class="info-row"><span class="info-key">Cores</span><span class="info-value"
-                    id="cpuCoresSys">-</span></div>
-                <div class="info-row"><span class="info-key">Load Average</span><span class="info-value"
-                    id="loadAvg">-</span></div>
-              </div>
-            </div>
-            <div class="system-card glass">
-              <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect x="2" y="5" width="16" height="12" rx="1.5" />
-                  <line x1="5" y1="8" x2="5" y2="14" />
-                  <line x1="9" y1="8" x2="9" y2="14" />
-                  <line x1="13" y1="8" x2="13" y2="14" />
-                </svg> Runtime</h3>
-              <div class="info-rows">
-                <div class="info-row"><span class="info-key">Electron</span><span class="info-value"
-                    id="electronVerSys">-</span></div>
-                <div class="info-row"><span class="info-key">Chrome</span><span class="info-value"
-                    id="chromeVerSys">-</span></div>
-                <div class="info-row"><span class="info-key">Node.js</span><span class="info-value"
-                    id="nodeVerSys">-</span></div>
+                <div class="info-row">
+                  <span class="info-key">Windows Version</span><span class="info-value" id="windowsVersion">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-key">Activation</span><span class="info-value" id="windowsActivation">-</span>
+                </div>
               </div>
             </div>
           </div>
@@ -358,29 +307,37 @@
         <section class="dashboard-section" id="section-performance">
           <div class="section-header">
             <h2>Performance Metrics</h2>
-            <p class="section-description">Live system performance and resource utilization</p>
+            <p class="section-description">
+              Live system performance and resource utilization
+            </p>
           </div>
           <div class="perf-grid">
             <div class="perf-card glass">
               <div class="perf-header">
-                <h3>CPU Load</h3><span class="perf-value perf-value-cpu" id="cpuLoadValue">0%</span>
+                <h3>CPU Load</h3>
+                <span class="perf-value perf-value-cpu" id="cpuLoadValue">0%</span>
               </div>
               <div class="perf-bar-track">
                 <div class="perf-bar-fill cpu-fill" id="cpuLoadBar"></div>
               </div>
-              <div class="perf-detail"><span>Logical Cores: <strong id="cpuCoresPerf">-</strong></span><span>Model:
-                  <strong id="cpuModelPerf">-</strong></span></div>
+              <div class="perf-detail">
+                <span>Logical Cores: <strong id="cpuCoresPerf">-</strong></span><span>Model: <strong
+                    id="cpuModelPerf">-</strong></span>
+              </div>
             </div>
             <div class="perf-card glass">
               <div class="perf-header">
-                <h3>Memory Usage</h3><span class="perf-value perf-value-mem" id="memUsageValue">0%</span>
+                <h3>Memory Usage</h3>
+                <span class="perf-value perf-value-mem" id="memUsageValue">0%</span>
               </div>
               <div class="perf-bar-track">
                 <div class="perf-bar-fill mem-fill" id="memUsageBar"></div>
               </div>
-              <div class="perf-detail"><span>Used: <strong id="memUsedDetail">-</strong></span><span>Free: <strong
+              <div class="perf-detail">
+                <span>Used: <strong id="memUsedDetail">-</strong></span><span>Free: <strong
                     id="memFreeDetail">-</strong></span><span class="perf-detail-vm">Virtual: <strong
-                    id="memVirtualDetail">-</strong></span></div>
+                    id="memVirtualDetail">-</strong></span>
+              </div>
             </div>
           </div>
 
@@ -389,54 +346,66 @@
             <div class="gauge-card glass">
               <div class="gauge-container">
                 <canvas id="cpuRingGauge" width="260" height="260"></canvas>
-                <div class="gauge-center-content"><span class="gauge-value" id="cpuGaugeValue">0%</span><span
-                    class="gauge-label">CPU Load</span></div>
+                <div class="gauge-center-content">
+                  <span class="gauge-value" id="cpuGaugeValue">0%</span><span class="gauge-label">CPU Load</span>
+                </div>
               </div>
               <div class="gauge-info">
-                <div class="gauge-stat"><span class="gauge-stat-label">Cores</span><span class="gauge-stat-value"
-                    id="gaugeCpuCores">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Clock</span><span class="gauge-stat-value"
-                    id="gaugeCpuSpeed">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Model</span><span
-                    class="gauge-stat-value gauge-stat-value-sm" id="gaugeCpuModel">-</span></div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Cores</span><span class="gauge-stat-value" id="gaugeCpuCores">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Clock</span><span class="gauge-stat-value" id="gaugeCpuSpeed">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Model</span><span class="gauge-stat-value gauge-stat-value-sm"
+                    id="gaugeCpuModel">-</span>
+                </div>
               </div>
             </div>
             <div class="gauge-card glass">
               <div class="gauge-container">
                 <canvas id="memRingGauge" width="260" height="260"></canvas>
-                <div class="gauge-center-content"><span class="gauge-value" id="memGaugeValue">0%</span><span
-                    class="gauge-label">Memory</span></div>
+                <div class="gauge-center-content">
+                  <span class="gauge-value" id="memGaugeValue">0%</span><span class="gauge-label">Memory</span>
+                </div>
               </div>
               <div class="gauge-info">
-                <div class="gauge-stat"><span class="gauge-stat-label">Used</span><span class="gauge-stat-value"
-                    id="gaugeMemUsed">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Free</span><span class="gauge-stat-value"
-                    id="gaugeMemFree">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Total</span><span class="gauge-stat-value"
-                    id="gaugeMemTotal">-</span></div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Used</span><span class="gauge-stat-value" id="gaugeMemUsed">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Free</span><span class="gauge-stat-value" id="gaugeMemFree">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Total</span><span class="gauge-stat-value" id="gaugeMemTotal">-</span>
+                </div>
               </div>
             </div>
             <div class="gauge-card glass">
               <div class="gauge-container">
                 <canvas id="vmRingGauge" width="260" height="260"></canvas>
-                <div class="gauge-center-content"><span class="gauge-value" id="vmGaugeValue">0%</span><span
-                    class="gauge-label">Virtual Memory</span></div>
+                <div class="gauge-center-content">
+                  <span class="gauge-value" id="vmGaugeValue">0%</span><span class="gauge-label">Virtual Memory</span>
+                </div>
               </div>
               <div class="gauge-info">
-                <div class="gauge-stat"><span class="gauge-stat-label">Used</span><span class="gauge-stat-value"
-                    id="gaugeVmUsed">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Free</span><span class="gauge-stat-value"
-                    id="gaugeVmFree">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Total</span><span class="gauge-stat-value"
-                    id="gaugeVmTotal">-</span></div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Used</span><span class="gauge-stat-value" id="gaugeVmUsed">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Free</span><span class="gauge-stat-value" id="gaugeVmFree">-</span>
+                </div>
+                <div class="gauge-stat">
+                  <span class="gauge-stat-label">Total</span><span class="gauge-stat-value" id="gaugeVmTotal">-</span>
+                </div>
               </div>
             </div>
-
           </div>
 
           <!-- Real-time CPU & Memory History Charts -->
           <div class="perf-chart-grid">
-            <div class="perf-chart-card glass">
+            <div class="perf-chart-card perf-chart-card-cpu glass">
               <div class="perf-chart-header">
                 <div class="perf-chart-title">
                   <h3>CPU Load History</h3>
@@ -454,11 +423,13 @@
                 <canvas id="cpuChart" width="600" height="200"></canvas>
               </div>
             </div>
-            <div class="perf-chart-card glass">
+            <div class="perf-chart-card perf-chart-card-mem glass">
               <div class="perf-chart-header">
                 <div class="perf-chart-title">
                   <h3>Memory Usage History</h3>
-                  <span class="perf-chart-badge" id="chartMemCurrent">0%</span>
+                  <div class="perf-chart-badges">
+                    <span class="perf-chart-badge" id="chartMemCurrent">0%</span>
+                  </div>
                 </div>
                 <div class="perf-chart-stats">
                   <span class="perf-chart-stat" id="chartMemUsed">Used: -</span>
@@ -470,11 +441,13 @@
                 <canvas id="memChart" width="600" height="200"></canvas>
               </div>
             </div>
-            <div class="perf-chart-card glass">
+            <div class="perf-chart-card perf-chart-card-vm glass">
               <div class="perf-chart-header">
                 <div class="perf-chart-title">
                   <h3>Virtual Memory Usage</h3>
-                  <span class="perf-chart-badge perf-chart-badge-vm" id="chartVmCurrent">0%</span>
+                  <div class="perf-chart-badges">
+                    <span class="perf-chart-badge perf-chart-badge-vm" id="chartVmCurrent">0%</span>
+                  </div>
                 </div>
                 <div class="perf-chart-stats">
                   <span class="perf-chart-stat" id="chartVmUsed">Used: -</span>
@@ -498,8 +471,12 @@
                 </div>
               </div>
               <div class="perf-donut-legend">
-                <div class="perf-legend-item"><span class="perf-legend-dot" style="background:#6366f1"></span>Used</div>
-                <div class="perf-legend-item"><span class="perf-legend-dot" style="background:#22c55e"></span>Free</div>
+                <div class="perf-legend-item">
+                  <span class="perf-legend-dot" style="background: #6366f1"></span>Used
+                </div>
+                <div class="perf-legend-item">
+                  <span class="perf-legend-dot" style="background: #22c55e"></span>Free
+                </div>
               </div>
             </div>
             <div class="live-metrics glass">
@@ -660,24 +637,28 @@
               </div>
             </div>
           </div>
-
         </section>
 
         <!-- ── Developer Section (Package Manager + Charts) ── -->
         <section class="dashboard-section" id="section-developer">
           <div class="section-header">
-            <h2><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:middle;margin-right:8px;">
+            <h2>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align: middle; margin-right: 8px">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <line x1="9" y1="3" x2="9" y2="21" />
                 <line x1="3" y1="9" x2="21" y2="9" />
                 <line x1="3" y1="15" x2="21" y2="15" />
-              </svg> Package Manager</h2>
-            <p class="section-description">Manage globally installed npm and Python packages</p>
+              </svg>
+              Package Manager
+            </h2>
+            <p class="section-description">
+              Manage globally installed npm and Python packages
+            </p>
           </div>
 
           <!-- Admin Status Bar -->
-          <div class="pkg-admin-bar" id="pkgAdminBar" style="display:none;">
+          <div class="pkg-admin-bar" id="pkgAdminBar" style="display: none">
             <div class="pkg-admin-indicator" id="pkgAdminIndicator">
               <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="3" y="8" width="14" height="9" rx="1.5" />
@@ -686,7 +667,7 @@
               <span id="pkgAdminText">Checking permissions...</span>
             </div>
             <button class="pkg-elevate-btn" id="pkgElevateBtn" title="Run commands with administrator privileges"
-              style="display:none;">
+              style="display: none">
               <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M10 1l3 6 6 .5-4.5 4.5L16 18l-6-3.5L4 18l1.5-6L1 7.5 7 7z" />
               </svg>
@@ -698,8 +679,11 @@
           <!-- Tab Switcher -->
           <div class="pkg-tabs">
             <button class="pkg-tab active" data-pkg-type="npm" id="pkgTabNpm">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><text
-                  x="4" y="17" font-size="14" font-weight="bold" fill="currentColor">npm</text></svg>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <text x="4" y="17" font-size="14" font-weight="bold" fill="currentColor">
+                  npm
+                </text>
+              </svg>
               <span>npm Packages</span>
               <span class="pkg-count" id="npmCount">0</span>
             </button>
@@ -749,7 +733,7 @@
           </div>
 
           <!-- Install New Package Form - pip tab -->
-          <div class="pkg-install-bar pkg-install-pip" id="pkgInstallBarPip" style="display:none;">
+          <div class="pkg-install-bar pkg-install-pip" id="pkgInstallBarPip" style="display: none">
             <svg class="pkg-install-icon" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
               stroke-width="1.5">
               <path d="M10 3v14M3 10h14" />
@@ -789,28 +773,34 @@
           </div>
 
           <!-- Action Log Panel -->
-          <div class="pkg-log-panel glass" id="pkgLogPanel" style="display:none;">
+          <div class="pkg-log-panel glass" id="pkgLogPanel" style="display: none">
             <div class="pkg-log-header">
               <h4>Action Log</h4>
-              <button class="pkg-log-close" id="pkgLogClose" title="Close">✕</button>
+              <button class="pkg-log-close" id="pkgLogClose" title="Close">
+                ✕
+              </button>
             </div>
             <pre class="pkg-log-content" id="pkgLogContent"></pre>
           </div>
-
         </section>
 
         <!-- ── Network Section ── -->
         <section class="dashboard-section" id="section-network">
           <div class="section-header">
             <h2>Network Statistics</h2>
-            <p class="section-description">Active network interfaces, IP addresses, and connection details</p>
+            <p class="section-description">
+              Active network interfaces, IP addresses, and connection details
+            </p>
           </div>
           <!-- Real-time Network Speed Card -->
           <div class="net-speed-card glass">
-            <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+            <h3>
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
                 <polyline points="18 8 12 14 8 10 2 16" />
                 <polyline points="18 4 18 8 14 8" />
-              </svg> Real-Time Transfer Speed</h3>
+              </svg>
+              Real-Time Transfer Speed
+            </h3>
             <div class="net-speed-row">
               <div class="net-speed-item">
                 <svg class="net-speed-arrow down" viewBox="0 0 16 16" width="16" height="16" fill="none"
@@ -843,65 +833,78 @@
               </div>
             </div>
             <div class="net-speed-total-row">
-              <span>Total: <strong id="netTotalRx">--</strong> received / <strong id="netTotalTx">--</strong>
-                transmitted</span>
+              <span>Total: <strong id="netTotalRx">--</strong> received /
+                <strong id="netTotalTx">--</strong> transmitted</span>
             </div>
           </div>
 
           <div class="network-full-panel glass">
-            <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+            <h3>
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="10" cy="10" r="8" />
                 <circle cx="10" cy="10" r="3" />
                 <line x1="10" y1="2" x2="10" y2="18" />
                 <line x1="2" y1="10" x2="18" y2="10" />
-              </svg> All Network Interfaces</h3>
+              </svg>
+              All Network Interfaces
+            </h3>
             <div class="network-table" id="networkFullTable">
               <div class="network-row header">
-                <span>Interface</span><span>Address</span><span>Family</span><span>MAC</span><span>Internal</span></div>
+                <span>Interface</span><span>Address</span><span>Family</span><span>MAC</span><span>Internal</span>
+              </div>
               <div class="network-empty">Loading...</div>
             </div>
           </div>
           <div class="network-metrics-grid">
             <div class="metric-card glass">
-              <div class="metric-icon platform-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-                  stroke="currentColor" stroke-width="1.5">
+              <div class="metric-icon platform-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <rect x="2" y="3" width="20" height="18" rx="2" />
                   <line x1="12" y1="15" x2="12" y2="21" />
                   <line x1="8" y1="21" x2="16" y2="21" />
-                </svg></div>
-              <div class="metric-info"><span class="metric-label">Hostname</span><span class="metric-value"
-                  id="netHostname">-</span></div>
+                </svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">Hostname</span><span class="metric-value" id="netHostname">-</span>
+              </div>
             </div>
             <div class="metric-card glass">
-              <div class="metric-icon cpu-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-                  stroke="currentColor" stroke-width="1.5">
+              <div class="metric-icon cpu-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <rect x="4" y="4" width="16" height="16" rx="2" />
                   <rect x="9" y="9" width="6" height="6" rx="1" />
                   <line x1="9" y1="1" x2="9" y2="4" />
                   <line x1="15" y1="1" x2="15" y2="4" />
-                </svg></div>
-              <div class="metric-info"><span class="metric-label">OS / Platform</span><span class="metric-value"
-                  id="netPlatform">-</span></div>
+                </svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">OS / Platform</span><span class="metric-value" id="netPlatform">-</span>
+              </div>
             </div>
             <div class="metric-card glass">
-              <div class="metric-icon memory-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-                  stroke="currentColor" stroke-width="1.5">
+              <div class="metric-icon memory-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
-                </svg></div>
-              <div class="metric-info"><span class="metric-label">Active Interfaces</span><span class="metric-value"
-                  id="netInterfaceCount">-</span></div>
+                </svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">Active Interfaces</span><span class="metric-value"
+                  id="netInterfaceCount">-</span>
+              </div>
             </div>
             <div class="metric-card glass">
-              <div class="metric-icon uptime-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-                  stroke="currentColor" stroke-width="1.5">
+              <div class="metric-icon uptime-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="2" y1="12" x2="22" y2="12" />
                   <path
                     d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                </svg></div>
-              <div class="metric-info"><span class="metric-label">Total IPs</span><span class="metric-value"
-                  id="netIPTotal">-</span></div>
+                </svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">Total IPs</span><span class="metric-value" id="netIPTotal">-</span>
+              </div>
             </div>
           </div>
         </section>
@@ -910,27 +913,36 @@
         <section class="dashboard-section" id="section-disk">
           <div class="section-header">
             <h2>Disk Usage</h2>
-            <p class="section-description">Storage device utilization and available space</p>
+            <p class="section-description">
+              Storage device utilization and available space
+            </p>
           </div>
           <div class="disk-grid" id="diskGrid">
             <div class="disk-loading">Loading disk information...</div>
           </div>
           <div class="disk-summary glass">
-            <h3><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+            <h3>
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
                 <ellipse cx="10" cy="6" rx="8" ry="3" />
                 <ellipse cx="10" cy="14" rx="8" ry="3" />
                 <line x1="2" y1="6" x2="2" y2="14" />
                 <line x1="18" y1="6" x2="18" y2="14" />
-              </svg> Storage Summary</h3>
+              </svg>
+              Storage Summary
+            </h3>
             <div class="info-rows">
-              <div class="info-row"><span class="info-key">Total Storage</span><span class="info-value"
-                  id="diskTotalSize">-</span></div>
-              <div class="info-row"><span class="info-key">Total Used</span><span class="info-value"
-                  id="diskTotalUsed">-</span></div>
-              <div class="info-row"><span class="info-key">Total Free</span><span class="info-value"
-                  id="diskTotalFree">-</span></div>
-              <div class="info-row"><span class="info-key">Usage</span><span class="info-value"
-                  id="diskTotalPercent">-</span></div>
+              <div class="info-row">
+                <span class="info-key">Total Storage</span><span class="info-value" id="diskTotalSize">-</span>
+              </div>
+              <div class="info-row">
+                <span class="info-key">Total Used</span><span class="info-value" id="diskTotalUsed">-</span>
+              </div>
+              <div class="info-row">
+                <span class="info-key">Total Free</span><span class="info-value" id="diskTotalFree">-</span>
+              </div>
+              <div class="info-row">
+                <span class="info-key">Usage</span><span class="info-value" id="diskTotalPercent">-</span>
+              </div>
             </div>
           </div>
         </section>
@@ -939,8 +951,10 @@
         <section class="dashboard-section" id="section-processes">
           <div class="section-header">
             <h2>Running Processes</h2>
-            <p class="section-description">Top processes sorted by memory usage <span class="process-info-badge">Top
-                30</span></p>
+            <p class="section-description">
+              Top processes sorted by memory usage
+              <span class="process-info-badge">Top 30</span>
+            </p>
           </div>
           <div class="process-search-bar">
             <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -950,9 +964,10 @@
             <input type="text" class="process-search-input" id="processSearch" placeholder="Search processes..." />
           </div>
           <div class="process-table-container glass">
-            <div class="process-table-header"><span class="proc-col pid">PID</span><span
-                class="proc-col name">Name</span><span class="proc-col cpu">CPU %</span><span
-                class="proc-col mem">Memory</span><span class="proc-col bar"></span></div>
+            <div class="process-table-header">
+              <span class="proc-col pid">PID</span><span class="proc-col name">Name</span><span class="proc-col cpu">CPU
+                %</span><span class="proc-col mem">Memory</span><span class="proc-col bar"></span>
+            </div>
             <div class="process-table-body" id="processTableBody">
               <div class="process-loading">Loading processes...</div>
             </div>
@@ -967,80 +982,116 @@
         <section class="dashboard-section" id="section-battery">
           <div class="section-header">
             <h2>Battery Information</h2>
-            <p class="section-description">Power source status and battery metrics</p>
+            <p class="section-description">
+              Power source status and battery metrics
+            </p>
           </div>
           <div id="batteryContent">
             <div class="battery-main-card glass">
               <div class="battery-visual">
                 <canvas id="batteryGauge" width="220" height="220"></canvas>
-                <div class="battery-center-content"><span class="battery-value" id="batteryLevel">-</span><span
-                    class="battery-label" id="batteryStatus">Checking...</span></div>
+                <div class="battery-center-content">
+                  <span class="battery-value" id="batteryLevel">-</span><span class="battery-label"
+                    id="batteryStatus">Checking...</span>
+                </div>
               </div>
               <div class="battery-details">
-                <div class="battery-stat"><span class="battery-stat-label">Status</span><span class="battery-stat-value"
-                    id="batteryStatusDetail">-</span></div>
-                <div class="battery-stat"><span class="battery-stat-label">Battery</span><span
-                    class="battery-stat-value" id="batteryPresent">-</span></div>
-                <div class="battery-stat"><span class="battery-stat-label">AC Power</span><span
-                    class="battery-stat-value" id="batteryAC">-</span></div>
-                <div class="battery-stat"><span class="battery-stat-label">Est. Runtime</span><span
-                    class="battery-stat-value" id="batteryEstRuntime">-</span></div>
-                <div class="battery-stat"><span class="battery-stat-label">Uptime</span><span class="battery-stat-value"
-                    id="batteryUptime">-</span></div>
+                <div class="battery-stat">
+                  <span class="battery-stat-label">Status</span><span class="battery-stat-value"
+                    id="batteryStatusDetail">-</span>
+                </div>
+                <div class="battery-stat">
+                  <span class="battery-stat-label">Battery</span><span class="battery-stat-value"
+                    id="batteryPresent">-</span>
+                </div>
+                <div class="battery-stat">
+                  <span class="battery-stat-label">AC Power</span><span class="battery-stat-value"
+                    id="batteryAC">-</span>
+                </div>
+                <div class="battery-stat">
+                  <span class="battery-stat-label">Est. Runtime</span><span class="battery-stat-value"
+                    id="batteryEstRuntime">-</span>
+                </div>
+                <div class="battery-stat">
+                  <span class="battery-stat-label">Uptime</span><span class="battery-stat-value"
+                    id="batteryUptime">-</span>
+                </div>
               </div>
             </div>
             <div class="battery-info-cards">
               <div class="dev-detail-card glass">
-                <h4><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
-                    style="vertical-align:middle;margin-right:6px;">
+                <h4>
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
+                    style="vertical-align: middle; margin-right: 6px">
                     <path d="M8 1v1M8 14v1M1 8h1M14 8h1M3.5 3.5l.5.5M12 12l.5.5M3.5 12.5l.5-.5M12 4l.5-.5" />
                     <circle cx="8" cy="8" r="4" />
                     <path d="M8 5v3l2 1" />
-                  </svg> Power Status</h4>
+                  </svg>
+                  Power Status
+                </h4>
                 <div class="info-rows-small">
-                  <div class="info-row"><span class="info-key">Battery Installed</span><span class="info-value"
-                      id="batteryInstalled">-</span></div>
-                  <div class="info-row"><span class="info-key">Charge Level</span><span class="info-value"
-                      id="batteryChargeLevel">-</span></div>
-                  <div class="info-row"><span class="info-key">On AC Power</span><span class="info-value"
-                      id="batteryOnAC">-</span></div>
-                  <div class="info-row"><span class="info-key">Time to Full</span><span class="info-value"
-                      id="batteryTimeFull">-</span></div>
-                  <div class="info-row"><span class="info-key">Est. Runtime</span><span class="info-value"
-                      id="batteryEstRuntimeDetail">-</span></div>
-                  <div class="info-row"><span class="info-key">Charge/Discharge Rate</span><span class="info-value"
-                      id="batteryRate">-</span></div>
-                  <div class="info-row"><span class="info-key">Platform</span><span class="info-value"
-                      id="batteryPlatform">-</span></div>
+                  <div class="info-row">
+                    <span class="info-key">Battery Installed</span><span class="info-value"
+                      id="batteryInstalled">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Charge Level</span><span class="info-value" id="batteryChargeLevel">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">On AC Power</span><span class="info-value" id="batteryOnAC">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Time to Full</span><span class="info-value" id="batteryTimeFull">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Est. Runtime</span><span class="info-value"
+                      id="batteryEstRuntimeDetail">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Charge/Discharge Rate</span><span class="info-value"
+                      id="batteryRate">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Platform</span><span class="info-value" id="batteryPlatform">-</span>
+                  </div>
                 </div>
               </div>
 
               <div class="dev-detail-card glass">
-                <h4><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
-                    style="vertical-align:middle;margin-right:6px;">
+                <h4>
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
+                    style="vertical-align: middle; margin-right: 6px">
                     <rect x="2" y="3" width="12" height="10" rx="2" />
                     <line x1="2" y1="6" x2="14" y2="6" />
                     <line x1="12" y1="11" x2="12" y2="12" />
                     <line x1="10" y1="11" x2="10" y2="12" />
                     <line x1="8" y1="11" x2="8" y2="12" />
-                  </svg> System</h4>
+                  </svg>
+                  System
+                </h4>
                 <div class="info-rows-small">
-                  <div class="info-row"><span class="info-key">Hostname</span><span class="info-value"
-                      id="batteryHostname">-</span></div>
-                  <div class="info-row"><span class="info-key">Uptime</span><span class="info-value"
-                      id="batterySysUptime">-</span></div>
-                  <div class="info-row"><span class="info-key">OS</span><span class="info-value" id="batteryOS">-</span>
+                  <div class="info-row">
+                    <span class="info-key">Hostname</span><span class="info-value" id="batteryHostname">-</span>
                   </div>
-                  <div class="info-row"><span class="info-key">Arch</span><span class="info-value"
-                      id="batteryArch">-</span></div>
+                  <div class="info-row">
+                    <span class="info-key">Uptime</span><span class="info-value" id="batterySysUptime">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">OS</span><span class="info-value" id="batteryOS">-</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-key">Arch</span><span class="info-value" id="batteryArch">-</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
       </main>
-    </div><!-- /app-body -->
-  </div><!-- /app-container -->
+    </div>
+    <!-- /app-body -->
+  </div>
+  <!-- /app-container -->
 
   <!-- 📦 JavaScript modules - dependencies handled via import/export -->
   <script type="module" src="script/app.js"></script>

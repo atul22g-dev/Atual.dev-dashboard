@@ -9,7 +9,6 @@ import { $, updateMetricBar, toggleMetricClass } from './utils.js';
 import { cpuRingGauge, memRingGauge, vmRingGauge } from './charts.js';
 import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts } from './charts.js';
 import { updateOverview } from './sections/overview-section.js';
-import { updateSystemPage } from './sections/system-section.js';
 import { updatePerformancePage } from './sections/performance-section.js';
 import { updateNetworkPage, loadNetworkSpeed } from './sections/network-section.js';
 import { loadDiskInfo } from './sections/disk-section.js';
@@ -49,7 +48,15 @@ function applyTheme(isLight) {
 }
 
 function toggleTheme() {
+  // Add transition class to animate the switch
+  document.body.classList.add('theme-transition');
   applyTheme(!document.body.classList.contains('light-theme'));
+  // Remove transition class after animation completes
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      document.body.classList.remove('theme-transition');
+    }, 500);
+  });
 }
 
 try {
@@ -137,12 +144,13 @@ async function loadSystemInfo() {
       }
     }).catch(() => {});
     updateOverview(info);
-    updateSystemPage(info);
+    // Note: updateOverview() internally calls updateSystemPage()
     updatePerformancePage(info);
     updateNetworkPage(info);
     loadBatteryInfo(info);
     updateCharts(info);
     loadCpuTempInfo();
+    loadGpuTempInfo();
   } catch (err) {
     console.error('Failed to load system info:', err);
   }
@@ -188,6 +196,28 @@ async function loadCpuTempInfo() {
 }
 
 // ──────────────────────────────────────────────
+// 🎮 GPU TEMPERATURE (fetched separately for Overview)
+// ──────────────────────────────────────────────
+
+async function loadGpuTempInfo() {
+  try {
+    const temp = await window.electronAPI.getGpuTemp();
+    const el = document.getElementById('gpuTempOverview');
+    if (!el) return;
+    if (temp !== null && temp !== undefined && temp > 0 && isFinite(temp)) {
+      el.textContent = `${temp.toFixed(0)}°C`;
+      el.style.color = temp > 75 ? 'var(--danger)' : temp > 55 ? 'var(--warning)' : 'var(--success)';
+    } else {
+      el.textContent = 'N/A';
+      el.style.color = 'var(--text-muted)';
+    }
+  } catch (err) {
+    const el = document.getElementById('gpuTempOverview');
+    if (el) { el.textContent = 'N/A'; el.style.color = 'var(--text-muted)'; }
+  }
+}
+
+// ──────────────────────────────────────────────
 // ⏱️ AUTO-REFRESH
 // ──────────────────────────────────────────────
 
@@ -195,7 +225,6 @@ let refreshTimer = null;
 let diskInterval = null;
 let processInterval = null;
 let netSpeedInterval = null;
-
 async function scheduleRefresh() {
   try { await loadSystemInfo(); }
   catch (err) { console.error('Refresh error:', err); }

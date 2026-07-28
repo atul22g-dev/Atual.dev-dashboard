@@ -1,28 +1,28 @@
 /* ============================================================
    📊 OVERVIEW SECTION - Dashboard Overview logic
+   Combined with System info (Device Info + Windows Info)
    ============================================================ */
 
-import { $, formatBytes, formatPlatform, formatUptime } from '../utils.js';
+import { $, formatUptime } from '../utils.js';
+import { updateSystemPage } from './system-section.js';
 
 export function updateOverview(info) {
-  $('cpuCores').textContent = `${info.cpus} Cores`;
-  $('totalMemory').textContent = formatBytes(info.totalMemory);
-  $('platform').textContent = formatPlatform(info.platform);
-  $('uptime').textContent = formatUptime(info.uptime);
-  $('electronVersion').textContent = `v${info.electronVersion}`;
-  $('chromeVersion').textContent = `v${info.chromeVersion}`;
-  $('nodeVersion').textContent = `v${info.nodeVersion}`;
-  $('hostname').textContent = info.hostname;
+  // ── Live CPU Load ──
+  const cpuLoad = info.cpuUsage !== undefined
+    ? info.cpuUsage
+    : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
+  $('cpuLoadOverview').textContent = `${cpuLoad.toFixed(1)}%`;
 
+  // ── Live Memory Used ──
   const usedMem = info.totalMemory - info.freeMemory;
   const memPercent = (usedMem / info.totalMemory) * 100;
-  $('memoryBar').style.width = `${Math.min(memPercent, 100)}%`;
-  $('usedMemory').textContent = formatBytes(usedMem);
-  $('freeMemory').textContent = formatBytes(info.freeMemory);
-  $('memoryTotal').textContent = formatBytes(info.totalMemory);
-  // Virtual memory (may not be available if info doesn't have it yet)
-  const vmTotal = $('virtualMemoryTotal');
-  if (vmTotal && info.virtualMemory && info.virtualMemory.total) {
-    vmTotal.textContent = formatBytes(info.virtualMemory.total);
-  }
+  $('memUsedOverview').textContent = `${memPercent.toFixed(1)}%`;
+
+  // ── Uptime ──
+  $('uptime').textContent = formatUptime(info.uptime);
+
+  // ── GPU Temp is fetched separately via loadGpuTempInfo() in app.js ──
+
+  // ── System Details (merged from previously separate System section) ──
+  updateSystemPage(info);
 }

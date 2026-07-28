@@ -408,18 +408,57 @@ export class ChartEngine {
 
     const da = this.getDrawArea();
 
-    ctx.fillStyle = colors.bg;
+    // ── Canvas background with subtle gradient ──
+    const accentColor = this._getAccentColor();
+    const bgGrad = ctx.createLinearGradient(0, da.y - 8, 0, da.y + da.h + 8);
+    bgGrad.addColorStop(0, accentColor);
+    bgGrad.addColorStop(1, colors.bg);
+    ctx.fillStyle = bgGrad;
     ctx.beginPath();
     ctx.roundRect(da.x - 8, da.y - 8, da.w + 16, da.h + 16, 4);
     ctx.fill();
 
+    // ── Subtle horizontal guide label at 50% ──
+    ctx.save();
+    ctx.fillStyle = hexToRgba(colors.text, 0.12);
+    ctx.font = '7px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    const midY = da.y + da.h / 2;
+    ctx.fillText('50%', da.x - 4, midY);
+    ctx.restore();
+
     this.drawGrid(da);
 
+    let hasData = false;
     opts.datasets.forEach(ds => {
-      if (ds.data && ds.data.length > 0) {
+      if (ds.data && ds.data.length > 1) {
         this.drawLine(da, ds);
+        hasData = true;
       }
     });
+
+    // ── "Collecting data..." placeholder when less than 2 data points ──
+    if (!hasData) {
+      const hasPoints = opts.datasets.some(ds => ds.data && ds.data.length === 1);
+      if (hasPoints) {
+        ctx.save();
+        ctx.fillStyle = hexToRgba(colors.text, 0.35);
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Collecting data…', da.x + da.w / 2, da.y + da.h / 2);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.fillStyle = hexToRgba(colors.text, 0.2);
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Waiting for data…', da.x + da.w / 2, da.y + da.h / 2);
+        ctx.restore();
+      }
+    }
 
     // Draw hover crosshair
     if (this._hoveredPoint) {
@@ -464,6 +503,14 @@ export class ChartEngine {
     }
   }
 
+  _getAccentColor() {
+    const ds = this.options.datasets;
+    if (ds && ds.length > 0 && ds[0].color) {
+      return hexToRgba(ds[0].color, 0.04);
+    }
+    return 'transparent';
+  }
+
   updateDatasets(datasets) {
     this.options.datasets = datasets;
     this.draw();
@@ -506,12 +553,20 @@ export class DonutChart {
     const total = validSlices.reduce((sum, s) => sum + s.value, 0);
     if (total <= 0 || !isFinite(total)) return;
 
+    // Outer glow ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, this.radius + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = hexToRgba('#6366f1', 0.06);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
     let startAngle = -Math.PI / 2;
 
     slices.forEach((slice) => {
       const angle = (slice.value / total) * Math.PI * 2;
       const endAngle = startAngle + angle;
 
+      // Main arc
       ctx.beginPath();
       ctx.arc(cx, cy, this.radius, startAngle, endAngle);
       ctx.strokeStyle = slice.color;
@@ -519,10 +574,11 @@ export class DonutChart {
       ctx.lineCap = 'round';
       ctx.stroke();
 
+      // Inner highlight arc (only for sizable segments)
       if (angle > 0.1) {
         ctx.beginPath();
         ctx.arc(cx, cy, this.radius - 2, startAngle, endAngle);
-        ctx.strokeStyle = hexToRgba(slice.color, 0.3);
+        ctx.strokeStyle = hexToRgba(slice.color, 0.25);
         ctx.lineWidth = 4;
         ctx.stroke();
       }
@@ -530,13 +586,20 @@ export class DonutChart {
       startAngle = endAngle;
     });
 
-    ctx.fillStyle = this.getTextColor();
-    ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    // Background track ring (behind slices to show empty space)
+    ctx.beginPath();
+    ctx.arc(cx, cy, this.radius, startAngle, -Math.PI / 2);
+    ctx.strokeStyle = this.getTrackColor();
+    ctx.lineWidth = this.lineWidth - 2;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
-    ctx.fillStyle = this.getMutedColor();
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+  getTrackColor() {
+    return document.body.classList.contains('light-theme')
+      ? 'rgba(0, 0, 0, 0.05)'
+      : 'rgba(255, 255, 255, 0.05)';
   }
 
   getTextColor() {

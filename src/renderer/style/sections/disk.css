@@ -1,27 +1,92 @@
 /* ============================================
-   💾 DISK SECTION - Storage cards & summary
+   💾 DISK SECTION — Modern UI
+   Glass-morphism, micro-interactions, gradients
    ============================================ */
 
+/* ── Section Header ── */
+#section-disk .section-header {
+  margin-bottom: 20px;
+}
+#section-disk .section-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-secondary) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradShift 4s ease-in-out infinite;
+}
+
+/* ── Disk Grid ── */
 .disk-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 14px;
   margin-bottom: 20px;
 }
-.disk-card { padding: 18px 20px; }
+.disk-card {
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.disk-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at top left, rgba(99,102,241,0.05), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.disk-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, transparent 40%, rgba(99,102,241,0.12), transparent 60%);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.disk-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.25), 0 0 0 1px rgba(99,102,241,0.10);
+  border-color: rgba(99,102,241,0.10);
+}
+.disk-card:hover::before { opacity: 1; }
+.disk-card:hover::after { opacity: 1; animation: borderShimmer 2s linear infinite; }
+
 .disk-card h3 {
   font-size: 13px; font-weight: 600; color: var(--text-primary);
   margin-bottom: 10px; display: flex; justify-content: space-between;
 }
 .disk-card h3 span { font-weight: 400; color: var(--text-muted); font-size: 12px; }
 .disk-bar-container {
-  width: 100%; height: 8px; background: rgba(255, 255, 255, 0.06);
+  width: 100%; height: 8px; background: rgba(0,0,0,0.25);
   border-radius: 4px; overflow: hidden; margin-bottom: 10px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
 }
 .disk-bar-fill {
   height: 100%; border-radius: 4px;
-  background: var(--gradient-accent);
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
   transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.disk-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: barShimmer 2.5s infinite;
 }
 .disk-bar-fill.warning { background: linear-gradient(90deg, #f59e0b, #eab308); }
 .disk-bar-fill.danger { background: linear-gradient(90deg, #ef4444, #dc2626); }
@@ -30,15 +95,50 @@
   font-size: 11px; color: var(--text-muted); flex-wrap: wrap;
 }
 .disk-stats strong { color: var(--text-secondary); font-weight: 600; }
-.disk-loading { padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px; }
-
-.disk-summary {
-  padding: 16px 20px;
-  margin-bottom: 24px;
+.disk-loading {
+  padding: 40px; text-align: center; color: var(--text-muted); font-size: 13px;
+  grid-column: 1 / -1;
 }
+
+/* ── Disk Summary ── */
+.disk-summary {
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.disk-summary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at top right, rgba(99,102,241,0.04), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.disk-summary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  border-color: rgba(99,102,241,0.08);
+}
+.disk-summary:hover::before { opacity: 1; }
+
 .disk-summary h3 {
   font-size: 13px; font-weight: 600; color: var(--text-secondary);
   margin-bottom: 12px; letter-spacing: 0.5px;
   display: flex; align-items: center; gap: 6px;
 }
 .disk-summary h3 svg { color: var(--accent-secondary); }
+
+/* ── Light Theme ── */
+body.light-theme #section-disk .section-header h2 {
+  -webkit-text-fill-color: transparent;
+}
+body.light-theme .disk-card { border-color: rgba(0,0,0,0.06); }
+body.light-theme .disk-card:hover { border-color: rgba(99,102,241,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+body.light-theme .disk-bar-container { background: rgba(0,0,0,0.08); }
+body.light-theme .disk-summary { border-color: rgba(0,0,0,0.06); }
+body.light-theme .disk-summary:hover { border-color: rgba(99,102,241,0.12); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
