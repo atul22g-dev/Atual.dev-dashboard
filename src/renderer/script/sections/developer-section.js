@@ -473,36 +473,46 @@ function showSuggestions(results) {
     return;
   }
 
-  container.innerHTML = results.map(pkg => `
-    <div class="pkg-suggestion-item" data-pkg-name="${pkg.name.replace(/"/g, '&quot;')}">
-      <div class="pkg-suggestion-name">
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="2" width="10" height="12" rx="2"/>
-          <line x1="8" y1="5" x2="8" y2="11"/>
-          <line x1="5" y1="8" x2="11" y2="8"/>
-        </svg>
-        ${pkg.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-        <span class="pkg-suggestion-version">${escapeHtml(pkg.version)}</span>
-      </div>
-      ${pkg.description ? `<div class="pkg-suggestion-desc">${escapeHtml(pkg.description)}</div>` : ''}
-    </div>
-  `).join('');
-  
-  container.classList.add('visible');
-  
-  // Click handler for suggestion items
-  container.querySelectorAll('.pkg-suggestion-item').forEach(item => {
+  // Build suggestion items as DOM elements (no innerHTML with dynamic content)
+  results.forEach(pkg => {
+    const item = document.createElement('div');
+    item.className = 'pkg-suggestion-item';
+    item.dataset.pkgName = pkg.name;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'pkg-suggestion-name';
+    // SVG icon
+    nameDiv.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2" width="10" height="12" rx="2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>';
+    // Package name as text
+    nameDiv.appendChild(document.createTextNode(' ' + pkg.name));
+
+    const versionSpan = document.createElement('span');
+    versionSpan.className = 'pkg-suggestion-version';
+    versionSpan.textContent = pkg.version;
+    nameDiv.appendChild(versionSpan);
+
+    item.appendChild(nameDiv);
+
+    if (pkg.description) {
+      const descDiv = document.createElement('div');
+      descDiv.className = 'pkg-suggestion-desc';
+      descDiv.textContent = pkg.description;
+      item.appendChild(descDiv);
+    }
+
     item.addEventListener('click', () => {
-      const name = item.dataset.pkgName;
       const input = getInstallInput();
-      if (input && name) {
-        input.value = name;
+      if (input) {
+        input.value = pkg.name;
         container.classList.remove('visible');
-        // Auto-trigger install
         handleInstallPackage();
       }
     });
+
+    container.appendChild(item);
   });
+  
+  container.classList.add('visible');
 }
 
 /**

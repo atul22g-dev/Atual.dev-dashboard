@@ -49,13 +49,37 @@ export function updateNetworkPage(info) {
     const row = document.createElement('div');
     row.className = 'network-row';
     row.style.opacity = net.internal ? '0.5' : '1';
-    row.innerHTML = `
-      <span>${net.name}${net.internal ? ' <span style="color:var(--text-muted);font-size:10px;">(loopback)</span>' : ''}</span>
-      <span>${net.address || '-'}</span>
-      <span>${net.family === 'IPv4' ? 'IPv4' : 'IPv6'}</span>
-      <span style="font-family:monospace;font-size:10px;">${net.mac || '-'}</span>
-      <span>${net.internal ? 'Yes' : 'No'}</span>
-    `;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.appendChild(document.createTextNode(net.name));
+    if (net.internal) {
+      const lb = document.createElement('span');
+      lb.style.color = 'var(--text-muted)';
+      lb.style.fontSize = '10px';
+      lb.textContent = '(loopback)';
+      nameSpan.appendChild(document.createTextNode(' '));
+      nameSpan.appendChild(lb);
+    }
+    row.appendChild(nameSpan);
+
+    const addrSpan = document.createElement('span');
+    addrSpan.textContent = net.address || '-';
+    row.appendChild(addrSpan);
+
+    const familySpan = document.createElement('span');
+    familySpan.textContent = net.family === 'IPv4' ? 'IPv4' : 'IPv6';
+    row.appendChild(familySpan);
+
+    const macSpan = document.createElement('span');
+    macSpan.style.fontFamily = 'monospace';
+    macSpan.style.fontSize = '10px';
+    macSpan.textContent = net.mac || '-';
+    row.appendChild(macSpan);
+
+    const intSpan = document.createElement('span');
+    intSpan.textContent = net.internal ? 'Yes' : 'No';
+    row.appendChild(intSpan);
+
     table.appendChild(row);
   });
 }

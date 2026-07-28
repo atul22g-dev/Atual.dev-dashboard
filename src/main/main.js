@@ -21,6 +21,12 @@ const { exec } = require('child_process'); // Run system commands (disk, process
 const https = require('https');       // For npm registry API calls
 const fs = require('fs');             // File system (for file birthtime / registry hive dates)
 
+// ── Static analysis entry markers ──
+// The following require.resolve() calls let dead-code analysis tools (deslop)
+// discover the renderer module graph. At runtime they only resolve paths
+// without executing modules — the actual renderer loads via loadFile().
+require.resolve('../renderer/script/app.js');
+
 // ──────────────────────────────────────────────
 // 🪟 WINDOW SETUP
 // ──────────────────────────────────────────────
@@ -428,8 +434,9 @@ function getOsActivationStatus() {
         _cachedOsActivation = 'Activated';
         return;
       }
-      if (/License Status:\s*(.+)$/im.test(out)) {
-        const status = out.match(/License Status:\s*(.+)$/im)[1].trim();
+      const licenseMatch = out.match(/License Status:\s*(.+)$/im);
+      if (licenseMatch && licenseMatch[1]) {
+        const status = licenseMatch[1].trim();
         if (status) {
           _cachedOsActivation = status;
           return;
@@ -517,14 +524,15 @@ function fetchGpuViaWmi() {
     if (!err && out && out.trim()) {
       const lines = out.trim().split('\n').filter(l => l.trim());
       if (lines.length > 0) {
-        const gpuList = lines.map(line => {
+        const gpuList = lines.flatMap(line => {
           const parts = line.split('|');
           const name = parts[0]?.trim() || '';
+          if (!name) return [];
           const ramBytes = parseInt(parts[1]) || 0;
           const memMB = ramBytes > 0 ? Math.round(ramBytes / 1024 / 1024) : 0;
           const memStr = memMB > 0 ? ` (${memMB >= 1024 ? (memMB / 1024).toFixed(0) + ' GB' : memMB + ' MB'})` : '';
-          return name ? name + memStr : '';
-        }).filter(Boolean);
+          return [name + memStr];
+        });
         
         if (gpuList.length > 0) {
           _cachedGpuInfo = { allGpus: gpuList.join(', ') };
@@ -708,96 +716,60 @@ function getBatteryInfo() {
       if (platform === 'win32') {
         // === WINDOWS BATTERY DETECTION ===
         // Strategy (tried in order):
-        //   1. PowerShell Get-CimInstance with simple echo output
-        //   2. PowerShell Get-WmiObject (older API, works when CimInstance is blocked)
-        //   3. Simplest WMIC /value query (key=value format, easy to parse)
+        //   1. PowerShell Get-CimInstance (modern, simplest syntax)
+        //   2. PowerShell Get-WmiObject (older API fallback)
+        //   3. WMIC /value query (last-resort on systems where WMIC still works)
         
-        // --- Method 1: PowerShell with Get-CimInstance and echo (Write-Output) ---
-        // Uses simple space-separated output to avoid quoting issues
-        const psCmd = 'powershell -NoProfile -Command "&{$bat=Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue;if($bat){echo ($bat.EstimatedChargeRemaining.ToString() + [char]44 + $bat.BatteryStatus.ToString())}else{echo NO_BATTERY}}" 2>nul';
+        // Helper to parse battery result from comma-separated "chargePct,status"
+        function resolveBattery(output) {
+          if (!output || output === 'NO_BATTERY') return null;
+          const parts = output.split(',');
+          const chargePct = parseInt(parts[0]);
+          const batteryStatus = parseInt(parts[1]) || 0;
+          if (isNaN(chargePct) || chargePct < 0 || chargePct > 100) return null;
+          const isCharging = [2, 6, 7, 8].includes(batteryStatus);
+          const onAC = batteryStatus !== 1;
+          return { hasBattery: true, level: chargePct / 100, charging: isCharging, acConnected: onAC };
+        }
         
-        exec(psCmd,
-          { timeout: 5000, maxBuffer: 1024 * 1024 },
-          (psError, psStdout) => {
-            if (!psError && psStdout) {
-              const output = psStdout.trim().split(/[\r\n]+/)[0]?.trim();
-              if (output && output !== 'NO_BATTERY') {
-                const parts = output.split(',');
-                const chargePct = parseInt(parts[0]);
-                const batteryStatus = parseInt(parts[1]) || 0;
-                if (!isNaN(chargePct) && chargePct >= 0 && chargePct <= 100) {
+        // --- Method 1: PowerShell Get-CimInstance (simplified, no [char]44) ---
+        const psCmd = 'powershell -NoProfile -Command "try{$b=Get-CimInstance Win32_Battery -ErrorAction Stop;echo ($b.EstimatedChargeRemaining,$b.BatteryStatus -join \',\')}catch{echo NO_BATTERY}" 2>nul';
+        
+        exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
+          if (!psErr && psOut) {
+            const result1 = resolveBattery(psOut.trim().split(/[\r\n]+/)[0]?.trim());
+            if (result1) { resolve(result1); return; }
+          }
+          
+          // --- Method 2: PowerShell Get-WmiObject (older API fallback) ---
+          const psCmd2 = 'powershell -NoProfile -Command "try{$b=Get-WmiObject Win32_Battery -ErrorAction Stop;echo ($b.EstimatedChargeRemaining,$b.BatteryStatus -join \',\')}catch{echo NO_BATTERY}" 2>nul';
+          exec(psCmd2, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr2, psOut2) => {
+            if (!psErr2 && psOut2) {
+              const result2 = resolveBattery(psOut2.trim().split(/[\r\n]+/)[0]?.trim());
+              if (result2) { resolve(result2); return; }
+            }
+            
+            // --- Method 3: WMIC (deprecated but still works on most Windows) ---
+            const wmicCmd = 'wmic path Win32_Battery get EstimatedChargeRemaining,BatteryStatus /value 2>nul';
+            exec(wmicCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (wmicErr, wmicOut) => {
+              if (!wmicErr && wmicOut) {
+                const chargeMatch = wmicOut.match(/EstimatedChargeRemaining=(\d+)/i);
+                const statusMatch = wmicOut.match(/BatteryStatus=(\d+)/i);
+                if (chargeMatch) {
+                  const chargePct = parseInt(chargeMatch[1]);
+                  const batteryStatus = statusMatch ? parseInt(statusMatch[1]) : 0;
                   const isCharging = [2, 6, 7, 8].includes(batteryStatus);
                   const onAC = batteryStatus !== 1;
-                  resolve({
-                    hasBattery: true,
-                    level: chargePct / 100,
-                    charging: isCharging,
-                    acConnected: onAC,
-                  });
+                  resolve({ hasBattery: true, level: chargePct / 100, charging: isCharging, acConnected: onAC });
                   return;
                 }
               }
-            }
-            
-            // --- Method 2: Try Get-WmiObject (older API, more widely available) ---
-            const psCmd2 = 'powershell -NoProfile -Command "&{$bat=Get-WmiObject Win32_Battery -ErrorAction SilentlyContinue;if($bat){echo ($bat.EstimatedChargeRemaining.ToString() + [char]44 + $bat.BatteryStatus.ToString())}else{echo NO_BATTERY}}" 2>nul';
-            
-            exec(psCmd2,
-              { timeout: 5000, maxBuffer: 1024 * 1024 },
-              (psErr2, psOut2) => {
-                if (!psErr2 && psOut2) {
-                  const output2 = psOut2.trim().split(/[\r\n]+/)[0]?.trim();
-                  if (output2 && output2 !== 'NO_BATTERY') {
-                    const parts2 = output2.split(',');
-                    const chargePct2 = parseInt(parts2[0]);
-                    const batteryStatus2 = parseInt(parts2[1]) || 0;
-                    if (!isNaN(chargePct2) && chargePct2 >= 0 && chargePct2 <= 100) {
-                      const isCharging2 = [2, 6, 7, 8].includes(batteryStatus2);
-                      const onAC2 = batteryStatus2 !== 1;
-                      resolve({
-                        hasBattery: true,
-                        level: chargePct2 / 100,
-                        charging: isCharging2,
-                        acConnected: onAC2,
-                      });
-                      return;
-                    }
-                  }
-                }
-                
-                // --- Method 3: Try bare WMIC without CSV format (key=value pairs, very robust) ---
-                // WMIC is deprecated but still available on most Windows systems
-                const wmicCmd = 'wmic path Win32_Battery get EstimatedChargeRemaining,BatteryStatus /value 2>nul';
-                exec(wmicCmd,
-                  { timeout: 5000, maxBuffer: 1024 * 1024 },
-                  (wmicErr, wmicOut) => {
-                    if (!wmicErr && wmicOut) {
-                      const chargeMatch = wmicOut.match(/EstimatedChargeRemaining=(\d+)/i);
-                      const statusMatch = wmicOut.match(/BatteryStatus=(\d+)/i);
-                      if (chargeMatch) {
-                        const chargePct3 = parseInt(chargeMatch[1]);
-                        const batteryStatus3 = statusMatch ? parseInt(statusMatch[1]) : 0;
-                        const isCharging3 = [2, 6, 7, 8].includes(batteryStatus3);
-                        const onAC3 = batteryStatus3 !== 1;
-                        resolve({
-                          hasBattery: true,
-                          level: chargePct3 / 100,
-                          charging: isCharging3,
-                          acConnected: onAC3,
-                        });
-                        return;
-                      }
-                    }
-                    
-                    // All methods failed — no battery detected
-                    console.error('[Battery] All detection methods failed on Windows (PS1, PS2, WMIC)');
-                    resolve({ hasBattery: false, level: 0, charging: false, acConnected: true });
-                  }
-                );
-              }
-            );
-          }
-        );
+              
+              console.error('[Battery] All 3 Windows detection methods failed');
+              resolve({ hasBattery: false, level: 0, charging: false, acConnected: true });
+            });
+          });
+        });
       } else if (platform === 'darwin') {
         // macOS: Try pmset for battery info
         exec('pmset -g batt 2>/dev/null',

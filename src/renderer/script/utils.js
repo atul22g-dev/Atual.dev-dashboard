@@ -27,10 +27,6 @@ export function formatPlatform(platform) {
   return names[platform] || platform;
 }
 
-/** Format load average to 2 decimal places */
-export function formatLoadAvg(val) {
-  return val.toFixed(2);
-}
 
 /** Convert hex color (#6366f1) to rgba with opacity */
 export function hexToRgba(hex, alpha) {

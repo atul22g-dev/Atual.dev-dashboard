@@ -1,13 +1,11 @@
 {
-  "name": "atual-dev-dashboard",
+  "name": "Atual.dev-dashboard",
   "version": "1.0.0",
   "description": "A modern desktop system monitoring dashboard built with Electron.",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
-    "nodemon": "nodemon --exec  electron . --dev",
-    "pack": "electron-builder --dir",
+    "start": "electron . --dev ",
+    "dev": "nodemon --exec electron . --dev",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",

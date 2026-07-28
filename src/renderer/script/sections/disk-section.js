@@ -34,7 +34,8 @@ export function renderDiskInfo(disks) {
 
   let totalSize = 0, totalUsed = 0, totalFree = 0;
 
-  disks.filter(d => d.total > 0).forEach(disk => {
+  for (const disk of disks) {
+    if (disk.total <= 0) continue;
     totalSize += disk.total;
     totalUsed += disk.used;
     totalFree += disk.free;
@@ -56,7 +57,7 @@ export function renderDiskInfo(disks) {
       </div>
     `;
     grid.appendChild(card);
-  });
+  }
 
   const totalPct = totalSize > 0 ? (totalUsed / totalSize) * 100 : 0;
   $('diskTotalSize').textContent = formatBytes(totalSize);
