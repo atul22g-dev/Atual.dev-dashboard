@@ -56,6 +56,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runElevated: (cmd, args) => ipcRenderer.invoke('run-elevated', cmd, args),
   // Fetch CPU temperature
   getCpuTemp: () => ipcRenderer.invoke('get-cpu-temp'),
+  // Search npm/pip registries for package suggestions
+  searchNpmPackages: (query) => ipcRenderer.invoke('search-npm-packages', query),
+  searchPipPackages: (query) => ipcRenderer.invoke('search-pip-packages', query),
+  // Virtual memory information
+  getVirtualMemory: () => ipcRenderer.invoke('get-virtual-memory'),
   // Fetch real-time network transfer speeds
   getNetworkSpeed: () => ipcRenderer.invoke('get-network-speed'),
   // Fetch detailed battery specs (design capacity, cycle count, etc.)

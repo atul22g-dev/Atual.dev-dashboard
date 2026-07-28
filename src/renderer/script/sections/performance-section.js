@@ -3,7 +3,7 @@
    ============================================================ */
 
 import { $, formatBytes, formatUptime, updateMetricBar, toggleMetricClass } from '../utils.js';
-import { cpuRingGauge, memRingGauge } from '../charts.js';
+import { cpuRingGauge, memRingGauge, vmRingGauge } from '../charts.js';
 
 export function updatePerformancePage(info) {
   const cpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
@@ -18,6 +18,10 @@ export function updatePerformancePage(info) {
   $('memUsageBar').style.width = `${Math.min(memPercent, 100)}%`;
   $('memUsedDetail').textContent = formatBytes(usedMem);
   $('memFreeDetail').textContent = formatBytes(info.freeMemory);
+  const memVirtual = $('memVirtualDetail');
+  if (memVirtual && info.virtualMemory && info.virtualMemory.total) {
+    memVirtual.textContent = `${formatBytes(info.virtualMemory.used)} / ${formatBytes(info.virtualMemory.total)}`;
+  }
 
   // Live System Metrics
   const infoCpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : 0;
@@ -67,9 +71,22 @@ export function updatePerformancePage(info) {
 
   if (memRingGauge) {
     memRingGauge.setValue(memPercent);
+    $('memGaugeValue').textContent = `${memPercent.toFixed(1)}%`;
     $('gaugeMemUsed').textContent = formatBytes(usedMem);
     $('gaugeMemFree').textContent = formatBytes(info.freeMemory);
     $('gaugeMemTotal').textContent = formatBytes(info.totalMemory);
-    $('gaugeUptime').textContent = formatUptime(info.uptime);
+  }
+
+  if (vmRingGauge) {
+    const vmPct = info.virtualMemory && info.virtualMemory.total > 0
+      ? ((info.virtualMemory.used / info.virtualMemory.total) * 100)
+      : 0;
+    vmRingGauge.setValue(vmPct);
+    $('vmGaugeValue').textContent = `${vmPct.toFixed(1)}%`;
+    if (info.virtualMemory && info.virtualMemory.total > 0) {
+      $('gaugeVmUsed').textContent = formatBytes(info.virtualMemory.used);
+      $('gaugeVmFree').textContent = formatBytes(info.virtualMemory.free);
+      $('gaugeVmTotal').textContent = formatBytes(info.virtualMemory.total);
+    }
   }
 }

@@ -6,18 +6,23 @@
    ============================================================ */
 
 import { $, updateMetricBar, toggleMetricClass } from './utils.js';
-import { cpuRingGauge, memRingGauge } from './charts.js';
-import { initCharts, cpuLineChart, memLineChart, donutChart, updateCharts } from './charts.js';
+import { cpuRingGauge, memRingGauge, vmRingGauge } from './charts.js';
+import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts } from './charts.js';
 import { updateOverview } from './sections/overview-section.js';
 import { updateSystemPage } from './sections/system-section.js';
 import { updatePerformancePage } from './sections/performance-section.js';
 import { updateNetworkPage, loadNetworkSpeed } from './sections/network-section.js';
 import { loadDiskInfo } from './sections/disk-section.js';
 import { loadProcesses, renderProcesses, processCache } from './sections/processes-section.js';
-import { loadPackages, checkAdminAndElevation, handlePackageAction, handleInstallPackage, showActionLog } from './sections/developer-section.js';
+import { loadPackages, checkAdminAndElevation, handlePackageAction, handleInstallPackage, showActionLog, onInstallInput } from './sections/developer-section.js';
 import { lastFailedAction, currentPkgType, npmPackages, pipPackages } from './sections/developer-section.js';
 import { switchPackageTab, renderPackages, showPackagePopup } from './sections/developer-section.js';
 import { batteryGauge, initBatteryGauge, loadBatteryInfo, loadBatteryDetails } from './sections/battery-section.js';
+
+// ──────────────────────────────────────────────
+// 🧠 Virtual Memory Cache (persists across refresh cycles)
+// ──────────────────────────────────────────────
+let _cachedVirtualMemory = null;
 
 // ──────────────────────────────────────────────
 // 🪟 WINDOW CONTROLS
@@ -82,6 +87,7 @@ navItems.forEach(item => {
       requestAnimationFrame(() => {
         if (cpuLineChart) cpuLineChart.resize();
         if (memLineChart) memLineChart.resize();
+        if (vmLineChart) vmLineChart.resize();
         if (donutChart && donutChart._lastSlices) donutChart.draw(donutChart._lastSlices);
       });
     }
@@ -118,6 +124,18 @@ window.electronAPI.onUnmaximize(() => updateMaximizeIcon(false));
 async function loadSystemInfo() {
   try {
     const info = await window.electronAPI.getSystemInfo();
+    // Merge cached virtual memory (if available) to avoid flicker
+    if (_cachedVirtualMemory) info.virtualMemory = _cachedVirtualMemory;
+    // Fetch fresh virtual memory in background
+    window.electronAPI.getVirtualMemory().then(vm => {
+      if (vm) {
+        _cachedVirtualMemory = vm;
+        info.virtualMemory = vm;
+        // Re-render sections that use virtual memory
+        updateOverview(info);
+        updatePerformancePage(info);
+      }
+    }).catch(() => {});
     updateOverview(info);
     updateSystemPage(info);
     updatePerformancePage(info);
@@ -192,8 +210,12 @@ function stopAutoRefresh() {
   if (processInterval) { clearInterval(processInterval); processInterval = null; }
   if (netSpeedInterval) { clearInterval(netSpeedInterval); netSpeedInterval = null; }
   window.electronAPI.removeMaximizeListeners();
+  if (cpuLineChart) cpuLineChart.destroy();
+  if (memLineChart) memLineChart.destroy();
+  if (vmLineChart) vmLineChart.destroy();
   if (cpuRingGauge) cpuRingGauge.destroy();
   if (memRingGauge) memRingGauge.destroy();
+  if (vmRingGauge) vmRingGauge.destroy();
   if (batteryGauge) batteryGauge.destroy();
 }
 
@@ -281,10 +303,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('pkgRefreshBtn')?.addEventListener('click', () => loadPackages());
 
-  const installInput = $('pkgInstallInput');
-  const installBtn = $('pkgInstallBtn');
-  if (installInput) installInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleInstallPackage(); });
-  if (installBtn) installBtn.addEventListener('click', () => handleInstallPackage());
+  // Install inputs for both npm and pip tabs
+  ['Npm', 'Pip'].forEach(suffix => {
+    const installInput = $(`pkgInstallInput${suffix}`);
+    const installBtn = $(`pkgInstallBtn${suffix}`);
+    if (installInput) {
+      installInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleInstallPackage(); });
+      installInput.addEventListener('input', onInstallInput);
+    }
+    if (installBtn) installBtn.addEventListener('click', () => handleInstallPackage());
+  });
 
   $('pkgLogClose')?.addEventListener('click', () => {
     const panel = $('pkgLogPanel');

@@ -1,5 +1,5 @@
 # 📁 Dependencies
-node_modules/
+node_modules
 
 # 🏗️ Build output
 out/
@@ -27,3 +27,5 @@ npm-debug.log*
 
 # 📦 Package lock (optional - keep if you want deterministic installs)
 # package-lock.json
+
+.freebuff

@@ -287,6 +287,8 @@
                       id="freeMemory">-</span></div>
                   <div class="memory-stat"><span class="stat-label">Total</span><span class="stat-value"
                       id="memoryTotal">-</span></div>
+                  <div class="memory-stat memory-stat-vm"><span class="stat-label">Virtual Mem</span><span class="stat-value"
+                      id="virtualMemoryTotal">-</span></div>
                 </div>
               </div>
             </div>
@@ -361,7 +363,7 @@
           <div class="perf-grid">
             <div class="perf-card glass">
               <div class="perf-header">
-                <h3>CPU Load</h3><span class="perf-value" id="cpuLoadValue">0%</span>
+                <h3>CPU Load</h3><span class="perf-value perf-value-cpu" id="cpuLoadValue">0%</span>
               </div>
               <div class="perf-bar-track">
                 <div class="perf-bar-fill cpu-fill" id="cpuLoadBar"></div>
@@ -371,13 +373,14 @@
             </div>
             <div class="perf-card glass">
               <div class="perf-header">
-                <h3>Memory Usage</h3><span class="perf-value" id="memUsageValue">0%</span>
+                <h3>Memory Usage</h3><span class="perf-value perf-value-mem" id="memUsageValue">0%</span>
               </div>
               <div class="perf-bar-track">
                 <div class="perf-bar-fill mem-fill" id="memUsageBar"></div>
               </div>
               <div class="perf-detail"><span>Used: <strong id="memUsedDetail">-</strong></span><span>Free: <strong
-                    id="memFreeDetail">-</strong></span></div>
+                    id="memFreeDetail">-</strong></span><span class="perf-detail-vm">Virtual: <strong
+                    id="memVirtualDetail">-</strong></span></div>
             </div>
           </div>
 
@@ -411,8 +414,21 @@
                     id="gaugeMemFree">-</span></div>
                 <div class="gauge-stat"><span class="gauge-stat-label">Total</span><span class="gauge-stat-value"
                     id="gaugeMemTotal">-</span></div>
-                <div class="gauge-stat"><span class="gauge-stat-label">Uptime</span><span
-                    class="gauge-stat-value gauge-stat-value-sm" id="gaugeUptime">-</span></div>
+              </div>
+            </div>
+            <div class="gauge-card glass">
+              <div class="gauge-container">
+                <canvas id="vmRingGauge" width="260" height="260"></canvas>
+                <div class="gauge-center-content"><span class="gauge-value" id="vmGaugeValue">0%</span><span
+                    class="gauge-label">Virtual Memory</span></div>
+              </div>
+              <div class="gauge-info">
+                <div class="gauge-stat"><span class="gauge-stat-label">Used</span><span class="gauge-stat-value"
+                    id="gaugeVmUsed">-</span></div>
+                <div class="gauge-stat"><span class="gauge-stat-label">Free</span><span class="gauge-stat-value"
+                    id="gaugeVmFree">-</span></div>
+                <div class="gauge-stat"><span class="gauge-stat-label">Total</span><span class="gauge-stat-value"
+                    id="gaugeVmTotal">-</span></div>
               </div>
             </div>
 
@@ -452,6 +468,21 @@
               </div>
               <div class="perf-chart-canvas-wrapper">
                 <canvas id="memChart" width="600" height="200"></canvas>
+              </div>
+            </div>
+            <div class="perf-chart-card glass">
+              <div class="perf-chart-header">
+                <div class="perf-chart-title">
+                  <h3>Virtual Memory Usage</h3>
+                  <span class="perf-chart-badge perf-chart-badge-vm" id="chartVmCurrent">0%</span>
+                </div>
+                <div class="perf-chart-stats">
+                  <span class="perf-chart-stat" id="chartVmUsed">Used: -</span>
+                  <span class="perf-chart-stat" id="chartVmTotal">Total: -</span>
+                </div>
+              </div>
+              <div class="perf-chart-canvas-wrapper">
+                <canvas id="vmChart" width="600" height="200"></canvas>
               </div>
             </div>
           </div>
@@ -698,15 +729,37 @@
             </button>
           </div>
 
-          <!-- Install New Package Form -->
-          <div class="pkg-install-bar">
+          <!-- Install New Package Form - NPM tab -->
+          <div class="pkg-install-bar pkg-install-npm" id="pkgInstallBarNpm">
             <svg class="pkg-install-icon" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
               stroke-width="1.5">
               <path d="M10 3v14M3 10h14" />
             </svg>
-            <input type="text" class="pkg-install-input" id="pkgInstallInput"
-              placeholder="Install a package (e.g. lodash or @angular/cli)..." />
-            <button class="pkg-install-btn" id="pkgInstallBtn" title="Install package">
+            <div class="pkg-install-input-wrap">
+              <input type="text" class="pkg-install-input" id="pkgInstallInputNpm"
+                placeholder="Search npm packages to install..." autocomplete="off" />
+              <div class="pkg-install-suggestions" id="pkgInstallSuggestionsNpm"></div>
+            </div>
+            <button class="pkg-install-btn" id="pkgInstallBtnNpm" title="Install npm package">
+              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 3v14M3 10h14" />
+              </svg>
+              Install
+            </button>
+          </div>
+
+          <!-- Install New Package Form - pip tab -->
+          <div class="pkg-install-bar pkg-install-pip" id="pkgInstallBarPip" style="display:none;">
+            <svg class="pkg-install-icon" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.5">
+              <path d="M10 3v14M3 10h14" />
+            </svg>
+            <div class="pkg-install-input-wrap">
+              <input type="text" class="pkg-install-input" id="pkgInstallInputPip"
+                placeholder="Search pip packages to install..." autocomplete="off" />
+              <div class="pkg-install-suggestions" id="pkgInstallSuggestionsPip"></div>
+            </div>
+            <button class="pkg-install-btn" id="pkgInstallBtnPip" title="Install pip package">
               <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M10 3v14M3 10h14" />
               </svg>
@@ -721,7 +774,7 @@
           <div class="pkg-list-container glass" id="pkgListContainer">
             <div class="pkg-list-header">
               <span class="pkg-col-name">Package</span>
-              <span class="pkg-col-version">Version</span>
+              <span class="pkg-col-info">Version / Description</span>
               <span class="pkg-col-actions">Actions</span>
             </div>
             <div class="pkg-list-body" id="pkgListBody">

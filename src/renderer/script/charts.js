@@ -269,11 +269,14 @@ export class ChartEngine {
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
         const tension = 0.3;
+        // Clamp control point Y values to prevent overshoot above 100% or below 0%
+        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
+        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          p1.y + (p2.y - p0.y) * tension,
+          cp1y,
           p2.x - (p3.x - p1.x) * tension,
-          p2.y - (p3.y - p1.y) * tension,
+          cp2y,
           p2.x, p2.y
         );
       }
@@ -300,11 +303,13 @@ export class ChartEngine {
         const p1 = points[i];
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
+        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
+        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          p1.y + (p2.y - p0.y) * tension,
+          cp1y,
           p2.x - (p3.x - p1.x) * tension,
-          p2.y - (p3.y - p1.y) * tension,
+          cp2y,
           p2.x, p2.y
         );
       }
@@ -334,11 +339,13 @@ export class ChartEngine {
         const p1 = points[i];
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
+        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
+        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          p1.y + (p2.y - p0.y) * tension,
+          cp1y,
           p2.x - (p3.x - p1.x) * tension,
-          p2.y - (p3.y - p1.y) * tension,
+          cp2y,
           p2.x, p2.y
         );
       }
@@ -549,16 +556,24 @@ const MAX_HISTORY = 60;
 
 export const cpuHistory = [0];
 export const memHistory = [0];
+export const vmHistory = [0];
 
 export let cpuLineChart = null;
 export let memLineChart = null;
+export let vmLineChart = null;
 export let donutChart = null;
 export let cpuRingGauge = null;
 export let memRingGauge = null;
+export let vmRingGauge = null;
 
 export function initCharts() {
   cpuRingGauge = new RingGauge('cpuRingGauge');
   memRingGauge = new RingGauge('memRingGauge');
+  vmRingGauge = new RingGauge('vmRingGauge', {
+    lowColor: '#22c55e',
+    midColor: '#f59e0b',
+    highColor: '#ef4444',
+  });
 
   cpuLineChart = new ChartEngine('cpuChart', {
     ySuffix: '%',
@@ -578,6 +593,15 @@ export function initCharts() {
     datasets: [{ color: '#22c55e', data: [] }],
   });
 
+  vmLineChart = new ChartEngine('vmChart', {
+    ySuffix: '%',
+    yMax: 100,
+    yMin: 0,
+    fillOpacity: 0.12,
+    lineWidth: 2.5,
+    datasets: [{ color: '#f59e0b', data: [] }],
+  });
+
   donutChart = new DonutChart('donutChart');
 }
 
@@ -590,7 +614,15 @@ export function updateCharts(info) {
   memHistory.push(memPercent);
   if (memHistory.length > MAX_HISTORY) memHistory.shift();
 
-  if (!cpuLineChart || !memLineChart || !donutChart) return;
+  if (!cpuLineChart || !memLineChart || !vmLineChart || !donutChart) return;
+
+  // Virtual Memory percentage
+  let vmPercent = 0;
+  if (info.virtualMemory && info.virtualMemory.total > 0) {
+    vmPercent = ((info.virtualMemory.used / info.virtualMemory.total) * 100);
+  }
+  vmHistory.push(vmPercent);
+  if (vmHistory.length > MAX_HISTORY) vmHistory.shift();
 
   cpuLineChart.updateDatasets([{ color: '#6366f1', data: [...cpuHistory] }]);
   const cpuCurrent = document.getElementById('chartCpuCurrent');
@@ -606,6 +638,18 @@ export function updateCharts(info) {
   memLineChart.updateDatasets([{ color: '#22c55e', data: [...memHistory] }]);
   const memCurrent = document.getElementById('chartMemCurrent');
   if (memCurrent) memCurrent.textContent = `${memPercent.toFixed(1)}%`;
+
+  vmLineChart.updateDatasets([{ color: '#f59e0b', data: [...vmHistory] }]);
+  const vmCurrent = document.getElementById('chartVmCurrent');
+  if (vmCurrent) vmCurrent.textContent = `${vmPercent.toFixed(1)}%`;
+  const vmUsedEl = document.getElementById('chartVmUsed');
+  const vmTotalEl = document.getElementById('chartVmTotal');
+  if (vmUsedEl && info.virtualMemory && info.virtualMemory.total) {
+    vmUsedEl.textContent = `Used: ${formatBytes(info.virtualMemory.used)}`;
+  }
+  if (vmTotalEl && info.virtualMemory && info.virtualMemory.total) {
+    vmTotalEl.textContent = `Total: ${formatBytes(info.virtualMemory.total)}`;
+  }
 
   const usedMem = info.totalMemory - info.freeMemory;
   const memUsedEl = document.getElementById('chartMemUsed');

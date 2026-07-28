@@ -18,6 +18,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const os = require('os');             // Operating system info (CPU, memory, etc.)
 const { exec } = require('child_process'); // Run system commands (disk, processes)
+const https = require('https');       // For npm registry API calls
 
 // ──────────────────────────────────────────────
 // 🪟 WINDOW SETUP
@@ -576,10 +577,11 @@ function getCpuTemperature() {
 
     if (platform === 'win32') {
       // Windows: Try multiple thermal detection methods
-      // PowerShell with Get-Counter is the most reliable on modern Windows 10+
 
-      // Method 1: PowerShell Get-Counter with properly spaced operators
-      const psCmd1 = 'powershell -NoProfile -Command "try{$v=(Get-Counter \\"\\Thermal Zone Information\\Temperature\" -ErrorAction Stop).CounterSamples[0].CookedValue;if($v -gt 0 -and $v -lt 120){[math]::Round($v)}else{-1}}catch{echo -1}" 2>nul';
+      // Method 1 (BEST): PowerShell Get-Counter with Temperature counter
+      // Counter returns tenths of °C (e.g. 356 = 35.6°C), so we divide by 10
+      // The (*) wildcard matches the thermal zone instance (e.g. \_tz.thrm)
+      const psCmd1 = `powershell -NoProfile -Command "try{$v=(Get-Counter '\\Thermal Zone Information(*)\\Temperature' -ErrorAction Stop).CounterSamples[0].CookedValue;$c=[math]::Round($v/10);if($c -gt 0 -and $c -lt 120){$c}else{-1}}catch{echo -1}" 2>nul`;
 
       exec(psCmd1, { timeout: 4000, maxBuffer: 1024 * 1024 }, (err1, out1) => {
         if (!err1 && out1) {
@@ -606,7 +608,7 @@ function getCpuTemperature() {
             } catch (e) { /* fall through */ }
           }
 
-          // Method 3: PowerShell Win32_PerfFormattedData (may return °C or tenths of Kelvin)
+          // Method 3: PowerShell Win32_PerfFormattedData (fallback)
           const psCmd3 = 'powershell -NoProfile -Command "try{$t=Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction Stop|Select -First 1 -ExpandProperty Temperature;if($t -gt 0){if($t -lt 120){$t}else{[math]::Round(($t/10)-273.15)}}else{-1}}catch{echo -1}" 2>nul';
           exec(psCmd3, { timeout: 3000, maxBuffer: 1024 * 1024 }, (err3, out3) => {
             if (!err3 && out3) {
@@ -620,13 +622,10 @@ function getCpuTemperature() {
         });
       });
     } else if (platform === 'darwin') {
-      // macOS: Use powermetrics (requires admin) or try system profiler
-      exec("pmset -g therm 2>/dev/null | grep -o 'CPU_Scheduler_Limit\\|CPU_Available_CPU_Speed_Limit' | head -1",
-        { timeout: 3000 }, (error) => {
-          // pmset doesn't give actual temp easily; try osx-cpu-temp or return -1
-          resolve(-1);
-        }
-      );
+      // macOS: pmset doesn't give actual temp easily
+      exec("pmset -g therm 2>/dev/null", { timeout: 3000 }, () => {
+        resolve(-1);
+      });
     } else {
       // Linux: Read from thermal zone sysfs
       exec('cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -5',
@@ -650,7 +649,9 @@ function getCpuTemperature() {
       );
     }
   });
-}// ──────────────────────────────────────────────
+}
+
+// ──────────────────────────────────────────────
 // 📡 NETWORK SPEED MONITOR
 // ──────────────────────────────────────────────
 
@@ -839,7 +840,7 @@ function runCommandElevated(cmd, args) {
       // Windows: Use PowerShell Start-Process with -Verb RunAs for UAC elevation
       // Wrap the command so we can capture output
       const psScript = `powershell -NoProfile -Command "
-        $proc = Start-Process -FilePath cmd.exe -ArgumentList '/c ${cmd.replace(/"/g, '\"')}' -Verb RunAs -Wait -PassThru -WindowStyle Hidden;
+        $proc = Start-Process -FilePath cmd.exe -ArgumentList '/c ${cmd.replace(/"/g, '\\"')}' -Verb RunAs -Wait -PassThru -WindowStyle Hidden;
         exit $proc.ExitCode
       "`;
 
@@ -932,15 +933,105 @@ function getPipPackages() {
         const packages = (parsed || []).map(pkg => ({
           name: pkg.name,
           version: pkg.version || '?',
-          description: '', // pip JSON doesn't include descriptions
+          description: '',
         }));
-        resolve(packages);
+        // Fetch descriptions from PyPI JSON API in batches
+        fetchPipDescriptions(packages).then(resolve);
       } catch (e) {
         resolve([]);
       }
     });
   });
 }
+
+// ──────────────────────────────────────────────
+// 🧠 VIRTUAL MEMORY (Swap / Page File)
+// ──────────────────────────────────────────────
+
+/**
+ * Get virtual memory (swap/page file) usage
+ * Returns { total, used, free } in bytes, or null if unavailable
+ */
+function getVirtualMemory() {
+  return new Promise((resolve) => {
+    const platform = os.platform();
+
+    if (platform === 'win32') {
+      // Windows: Get TotalVirtualMemorySize & FreeVirtualMemory from WMI
+      // TotalVirtualMemorySize = physical RAM + page file total (in KB)
+      const psCmd = 'powershell -NoProfile -Command "&{$vm=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($vm){echo ($vm.TotalVirtualMemorySize.ToString() + [char]44 + $vm.FreeVirtualMemory.ToString())}else{echo 0,0}}" 2>nul';
+      exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
+        if (!err && out) {
+          const output = out.trim().split(/[\r\n]+/)[0]?.trim();
+          if (output && !output.includes('0,0')) {
+            const parts = output.split(',');
+            const totalKB = parseInt(parts[0]);
+            const freeKB = parseInt(parts[1]);
+            if (totalKB && totalKB > 0) {
+              const total = totalKB * 1024;
+              const free = freeKB * 1024;
+              const used = total - free;
+              resolve({ total, used, free });
+              return;
+            }
+          }
+        }
+        resolve(null);
+      });
+    } else if (platform === 'linux') {
+      // Linux: Read swap from /proc/meminfo
+      exec('grep -E "^(SwapTotal|SwapFree):" /proc/meminfo 2>/dev/null', { timeout: 3000 }, (err, out) => {
+        if (!err && out) {
+          const totalMatch = out.match(/SwapTotal:\s+(\d+)\s+kB/i);
+          const freeMatch = out.match(/SwapFree:\s+(\d+)\s+kB/i);
+          if (totalMatch && freeMatch) {
+            const totalKB = parseInt(totalMatch[1]);
+            const freeKB = parseInt(freeMatch[1]);
+            if (totalKB > 0) {
+              const total = totalKB * 1024;
+              const free = freeKB * 1024;
+              const used = total - free;
+              resolve({ total, used, free });
+              return;
+            }
+          }
+        }
+        resolve(null);
+      });
+    } else if (platform === 'darwin') {
+      // macOS: Get swap usage from sysctl
+      exec('sysctl vm.swapusage 2>/dev/null', { timeout: 3000 }, (err, out) => {
+        if (!err && out) {
+          const totalMatch = out.match(/total\s*=\s*([\d.]+)\s*([KMGT]?)/i);
+          const usedMatch = out.match(/used\s*=\s*([\d.]+)\s*([KMGT]?)/i);
+          if (totalMatch && usedMatch) {
+            const parseSize = (val, unit) => {
+              const num = parseFloat(val);
+              const u = (unit || 'K').toUpperCase();
+              if (u === 'K') return num * 1024;
+              if (u === 'M') return num * 1024 * 1024;
+              if (u === 'G') return num * 1024 * 1024 * 1024;
+              if (u === 'T') return num * 1024 * 1024 * 1024 * 1024;
+              return num;
+            };
+            const total = parseSize(totalMatch[1], totalMatch[2]);
+            const used = parseSize(usedMatch[1], usedMatch[2]);
+            const free = total - used;
+            if (total > 0) {
+              resolve({ total, used, free });
+              return;
+            }
+          }
+        }
+        resolve(null);
+      });
+    } else {
+      resolve(null);
+    }
+  });
+}
+
+
 
 /**
  * ⬆️ Update a global package (npm or pip)
@@ -1052,8 +1143,106 @@ function deletePackage(type, name) {
   });
 }
 
+// ──────────────────────────────────────────────
+// 🔍 PACKAGE SEARCH (registry autocomplete)
+// ──────────────────────────────────────────────
+
 /**
- ⚙️ Get list of running processes
+ * Search npm registry for packages matching a query
+ * Uses the npm public registry API
+ */
+function searchNpmRegistry(query) {
+  return new Promise((resolve) => {
+    const q = encodeURIComponent(query.trim());
+    if (q.length < 2) { resolve([]); return; }
+    const url = `https://registry.npmjs.org/-/v1/search?text=${q}&size=8`;
+    https.get(url, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const results = (parsed.objects || []).map(obj => ({
+            name: obj.package.name,
+            version: obj.package.version,
+            description: (obj.package.description || '').substring(0, 120),
+          }));
+          resolve(results);
+        } catch (e) { resolve([]); }
+      });
+    }).on('error', () => resolve([]));
+  });
+}
+
+/**
+ * Fetch pip package description from PyPI JSON API
+ */
+function fetchPipDescription(name) {
+  return new Promise((resolve) => {
+    const url = `https://pypi.org/pypi/${encodeURIComponent(name)}/json`;
+    https.get(url, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve((parsed.info?.summary || '').substring(0, 200));
+        } catch (e) { resolve(''); }
+      });
+    }).on('error', () => resolve(''));
+  });
+}
+
+/**
+ * Fetch descriptions for multiple pip packages in batches
+ */
+async function fetchPipDescriptions(packages) {
+  const batchSize = 5;
+  for (let i = 0; i < packages.length; i += batchSize) {
+    const batch = packages.slice(i, i + batchSize);
+    const descs = await Promise.all(batch.map(p => fetchPipDescription(p.name)));
+    batch.forEach((pkg, j) => { pkg.description = descs[j]; });
+  }
+  return packages;
+}
+
+/**
+ * Search pip registry for packages matching a query
+ * Uses pip index command (newer pip) or pip search (older pip)
+ */
+function searchPipRegistry(query) {
+  return new Promise((resolve) => {
+    const escaped = query.replace(/[^a-zA-Z0-9\-_.\s]/g, '').trim();
+    if (!escaped || escaped.length < 2) { resolve([]); return; }
+
+    // Try pip index versions first (newer pip)
+    const pipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
+    exec(`${pipCmd} index versions "${escaped}" 2>nul`, { timeout: 8000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+      if (!err && stdout && stdout.trim()) {
+        const lines = stdout.trim().split('\n').filter(l => l.trim());
+        if (lines.length > 0) {
+          const versionMatch = lines[0].match(/available versions: (.+)/i);
+          const versions = versionMatch ? versionMatch[1].split(',') : [];
+          const pkgNameMatch = lines[0].match(/^(.+?)\(/);
+          const name = pkgNameMatch ? pkgNameMatch[1].trim() : escaped;
+          // Fetch description from PyPI API
+          fetchPipDescription(name).then(desc => {
+            resolve([{
+              name,
+              version: versions[0]?.trim() || '',
+              description: desc.substring(0, 120),
+            }]);
+          });
+          return;
+        }
+      }
+      resolve([]);
+    });
+  });
+}
+
+/**
+ * ⚙️ Get list of running processes
  * Uses tasklist (Windows) or ps aux (macOS/Linux)
  * Returns top 30 processes sorted by memory usage
  */
@@ -1147,12 +1336,15 @@ app.whenReady().then(() => {
   ipcMain.handle('update-package', (_, type, name) => updatePackage(type, name));
   ipcMain.handle('delete-package', (_, type, name) => deletePackage(type, name));
   ipcMain.handle('install-package', (_, type, name) => installPackage(type, name));
+  ipcMain.handle('search-npm-packages', (_, query) => searchNpmRegistry(query));
+  ipcMain.handle('search-pip-packages', (_, query) => searchPipRegistry(query));
   ipcMain.handle('check-admin', () => checkAdminStatus());
   ipcMain.handle('check-npm-admin', () => checkNpmNeedsAdmin());
   ipcMain.handle('run-elevated', (_, cmd, args) => runCommandElevated(cmd, args));
   ipcMain.handle('get-cpu-temp', () => getCpuTemperature());
   ipcMain.handle('get-network-speed', () => getNetworkSpeed());
   ipcMain.handle('get-battery-details', () => getBatteryDetails());
+  ipcMain.handle('get-virtual-memory', () => getVirtualMemory());
 
   // ─── Window Controls ────────────────────
   ipcMain.on('window-minimize', () => mainWindow?.minimize());

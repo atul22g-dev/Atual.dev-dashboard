@@ -122,6 +122,9 @@
   text-transform: uppercase; letter-spacing: 0.5px;
   background: rgba(0, 0, 0, 0.15); border-bottom: 1px solid var(--border-color);
 }
+.pkg-list-header .pkg-col-name { grid-column: 1; }
+.pkg-list-header .pkg-col-info { grid-column: 2; }
+.pkg-list-header .pkg-col-actions { grid-column: 3; }
 .pkg-list-body {
   max-height: 460px;
   overflow-y: auto;
@@ -131,8 +134,8 @@
 .pkg-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1.5fr;
-  gap: 8px; padding: 7px 14px; font-size: 12px;
-  align-items: center; border-bottom: 1px solid rgba(255,255,255,0.03);
+  gap: 8px; padding: 8px 14px; font-size: 12px;
+  align-items: start; border-bottom: 1px solid rgba(255,255,255,0.03);
   transition: var(--transition-fast);
 }
 .pkg-row:last-child { border-bottom: none; }
@@ -140,11 +143,31 @@
 .pkg-row-loading { opacity: 0.5; pointer-events: none; }
 .pkg-name {
   display: flex; align-items: center; gap: 6px; color: var(--text-primary);
-  font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  cursor: pointer; transition: var(--transition-fast);
+  font-weight: 500; overflow: hidden; cursor: pointer; transition: var(--transition-fast);
+  padding-top: 1px;
 }
 .pkg-name:hover { color: var(--accent-primary); }
 .pkg-name:hover .pkg-icon { color: var(--accent-primary); }
+.pkg-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pkg-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pkg-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
 .pkg-highlight {
   font-weight: 700;
   color: var(--accent-primary);
@@ -341,6 +364,106 @@
   color: var(--danger);
 }
 .pkg-popup-action-btn.delete:hover { background: rgba(239, 68, 68, 0.2); }
+
+/* ─── Install Bar per Tab ── */
+.pkg-install-npm { }
+.pkg-install-pip { }
+
+/* ─── Install Input with Suggestions ── */
+.pkg-install-input-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.pkg-install-input-wrap .pkg-install-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+/* ─── Autocomplete Suggestions Dropdown ── */
+.pkg-install-suggestions {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -14px;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-height: 280px;
+  overflow-y: auto;
+  animation: suggestionsSlideIn 0.15s ease-out;
+}
+.pkg-install-suggestions.visible {
+  display: block;
+}
+@keyframes suggestionsSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pkg-install-suggestions::-webkit-scrollbar {
+  width: 4px;
+}
+.pkg-install-suggestions::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+}
+.pkg-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.pkg-suggestion-item:last-child {
+  border-bottom: none;
+}
+.pkg-suggestion-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+.pkg-suggestion-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.pkg-suggestion-name svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+.pkg-suggestion-version {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: monospace;
+  margin-left: auto;
+}
+.pkg-suggestion-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding-left: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pkg-suggestion-loading {
+  padding: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
 body.light-theme .pkg-popup {
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.12);

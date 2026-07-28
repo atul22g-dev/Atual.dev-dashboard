@@ -83,16 +83,21 @@ export function renderPackages(packages, filter) {
     row.className = 'pkg-row';
     row.dataset.pkgName = pkg.name;
     const highlightedName = filter ? highlightText(pkg.name, filter) : escapeHtml(pkg.name);
+    const desc = pkg.description || '';
+    const safeDesc = desc ? escapeHtml(desc.substring(0, 120)) : '';
     row.innerHTML = `
-      <span class="pkg-name" title="${(pkg.description || '').replace(/"/g, '&quot;')}">
+      <span class="pkg-name" title="${desc.replace(/"/g, '&quot;')}">
         <svg class="pkg-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="3" y="3" width="14" height="14" rx="2"/>
           <line x1="3" y1="9" x2="17" y2="9"/>
           <line x1="9" y1="3" x2="9" y2="17"/>
         </svg>
-        ${highlightedName}
+        <span class="pkg-name-text">${highlightedName}</span>
       </span>
-      <span class="pkg-version">${pkg.version}</span>
+      <span class="pkg-info">
+        <span class="pkg-version">${pkg.version}</span>
+        ${safeDesc ? `<span class="pkg-desc">${safeDesc}</span>` : ''}
+      </span>
       <span class="pkg-actions">
         <button class="pkg-action-btn update" data-action="update" data-pkg="${pkg.name}" title="Update package">
           <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -249,6 +254,19 @@ export function switchPackageTab(type) {
   const tabBtn = type === 'npm' ? $('pkgTabNpm') : $('pkgTabPip');
   if (tabBtn) tabBtn.classList.add('active');
   $('pkgSummaryType').textContent = type;
+  
+  // Show/hide the correct install bar
+  const barNpm = $('pkgInstallBarNpm');
+  const barPip = $('pkgInstallBarPip');
+  if (barNpm) barNpm.style.display = type === 'npm' ? '' : 'none';
+  if (barPip) barPip.style.display = type === 'pip' ? '' : 'none';
+  
+  // Clear suggestions when switching tabs
+  const sugNpm = $('pkgInstallSuggestionsNpm');
+  const sugPip = $('pkgInstallSuggestionsPip');
+  if (sugNpm) sugNpm.classList.remove('visible');
+  if (sugPip) sugPip.classList.remove('visible');
+  
   const searchInput = $('pkgSearch');
   if (searchInput) searchInput.value = '';
   const cached = type === 'npm' ? npmPackages : pipPackages;
@@ -363,17 +381,156 @@ function showAdminElevationHint(action, pkgName) {
   if (elevateBtn) elevateBtn.style.display = 'flex';
 }
 
+// ──────────────────────────────────────────────
+// 🔍 PACKAGE INSTALL WITH AUTOCOMPLETE
+// ──────────────────────────────────────────────
+
+let _searchTimers = { npm: null, pip: null };
+
+/**
+ * Get the input element for the currently active tab
+ */
+function getInstallInput() {
+  return currentPkgType === 'npm' ? $('pkgInstallInputNpm') : $('pkgInstallInputPip');
+}
+
+/**
+ * Get the suggestions container for the currently active tab
+ */
+function getSuggestionsContainer() {
+  return currentPkgType === 'npm' ? $('pkgInstallSuggestionsNpm') : $('pkgInstallSuggestionsPip');
+}
+
+/**
+ * Get the install button for the currently active tab
+ */
+function getInstallBtn() {
+  return currentPkgType === 'npm' ? $('pkgInstallBtnNpm') : $('pkgInstallBtnPip');
+}
+
+/**
+ * Show suggestions dropdown with package search results
+ */
+function showSuggestions(results) {
+  const container = getSuggestionsContainer();
+  if (!container) return;
+  
+  if (!results || results.length === 0) {
+    container.classList.remove('visible');
+    return;
+  }
+
+  container.innerHTML = results.map(pkg => `
+    <div class="pkg-suggestion-item" data-pkg-name="${pkg.name.replace(/"/g, '&quot;')}">
+      <div class="pkg-suggestion-name">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="2" width="10" height="12" rx="2"/>
+          <line x1="8" y1="5" x2="8" y2="11"/>
+          <line x1="5" y1="8" x2="11" y2="8"/>
+        </svg>
+        ${pkg.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        <span class="pkg-suggestion-version">${escapeHtml(pkg.version)}</span>
+      </div>
+      ${pkg.description ? `<div class="pkg-suggestion-desc">${escapeHtml(pkg.description)}</div>` : ''}
+    </div>
+  `).join('');
+  
+  container.classList.add('visible');
+  
+  // Click handler for suggestion items
+  container.querySelectorAll('.pkg-suggestion-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const name = item.dataset.pkgName;
+      const input = getInstallInput();
+      if (input && name) {
+        input.value = name;
+        container.classList.remove('visible');
+        // Auto-trigger install
+        handleInstallPackage();
+      }
+    });
+  });
+}
+
+/**
+ * Debounced search for packages as user types
+ */
+export function onInstallInput(e) {
+  const input = e.target;
+  const query = input.value.trim();
+  const type = input.id === 'pkgInstallInputNpm' ? 'npm' : 'pip';
+  
+  // Clear previous timer
+  if (_searchTimers[type]) {
+    clearTimeout(_searchTimers[type]);
+    _searchTimers[type] = null;
+  }
+  
+  // Hide suggestions if query is too short
+  const container = type === 'npm' ? $('pkgInstallSuggestionsNpm') : $('pkgInstallSuggestionsPip');
+  if (query.length < 2) {
+    if (container) container.classList.remove('visible');
+    return;
+  }
+  
+  // Show loading state
+  if (container) {
+    container.innerHTML = '<div class="pkg-suggestion-loading">Searching...</div>';
+    container.classList.add('visible');
+  }
+  
+  // Debounce search
+  _searchTimers[type] = setTimeout(async () => {
+    try {
+      const searchFn = type === 'npm'
+        ? window.electronAPI.searchNpmPackages
+        : window.electronAPI.searchPipPackages;
+      const results = await searchFn(query);
+      showSuggestions(results);
+    } catch (err) {
+      const c = type === 'npm' ? $('pkgInstallSuggestionsNpm') : $('pkgInstallSuggestionsPip');
+      if (c) c.classList.remove('visible');
+    }
+  }, 350);
+}
+
+/**
+ * Hide suggestions when clicking outside
+ */
+document.addEventListener('click', (e) => {
+  const containerNpm = $('pkgInstallSuggestionsNpm');
+  const containerPip = $('pkgInstallSuggestionsPip');
+  const barNpm = $('pkgInstallBarNpm');
+  const barPip = $('pkgInstallBarPip');
+  
+  if (containerNpm && !barNpm?.contains(e.target)) {
+    containerNpm.classList.remove('visible');
+  }
+  if (containerPip && !barPip?.contains(e.target)) {
+    containerPip.classList.remove('visible');
+  }
+});
+
+/**
+ * Install a package with the current tab's input
+ */
 export async function handleInstallPackage() {
-  const input = $('pkgInstallInput');
+  const input = getInstallInput();
   if (!input) return;
   const pkgName = input.value.trim();
   if (!pkgName) { showStatus('Please enter a package name to install', true); input.focus(); return; }
-  const btn = $('pkgInstallBtn');
+  
+  const btn = getInstallBtn();
   const originalText = btn?.textContent || 'Install';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pkg-install-spinner"></span> Installing...'; }
   input.disabled = true;
   hideStatus();
   showStatus(`Installing ${pkgName}...`);
+  
+  // Hide suggestions
+  const container = getSuggestionsContainer();
+  if (container) container.classList.remove('visible');
+  
   try {
     const result = await window.electronAPI.installPackage(currentPkgType, pkgName);
     if (result.success) {

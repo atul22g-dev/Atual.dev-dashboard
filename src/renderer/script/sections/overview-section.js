@@ -20,4 +20,9 @@ export function updateOverview(info) {
   $('usedMemory').textContent = formatBytes(usedMem);
   $('freeMemory').textContent = formatBytes(info.freeMemory);
   $('memoryTotal').textContent = formatBytes(info.totalMemory);
+  // Virtual memory (may not be available if info doesn't have it yet)
+  const vmTotal = $('virtualMemoryTotal');
+  if (vmTotal && info.virtualMemory && info.virtualMemory.total) {
+    vmTotal.textContent = formatBytes(info.virtualMemory.total);
+  }
 }
