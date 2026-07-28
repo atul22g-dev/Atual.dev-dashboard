@@ -1,0 +1,113 @@
+/* ============================================
+   🌐 NETWORK SECTION - Network table & speed monitor
+   ============================================ */
+
+.network-table { display: flex; flex-direction: column; gap: 2px; }
+.network-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1.5fr 0.6fr 1.2fr 0.5fr;
+  gap: 8px; padding: 8px 12px; font-size: 12px;
+  align-items: center; border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+.network-row:hover { background: rgba(255, 255, 255, 0.03); }
+.network-row.header {
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 8px 12px; background: rgba(0, 0, 0, 0.15);
+}
+.network-row span { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.network-row.header span { color: var(--text-muted); }
+body.light-theme .network-row:hover { background: rgba(0, 0, 0, 0.03); }
+body.light-theme .network-row.header { background: rgba(0, 0, 0, 0.04); }
+
+.network-full-panel {
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.network-full-panel h3 {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 12px; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.network-full-panel h3 svg { color: var(--accent-primary); }
+
+.network-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Net Speed Card */
+.net-speed-card {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.net-speed-card h3 {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 14px; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.net-speed-card h3 svg { color: var(--info); }
+
+.net-speed-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.net-speed-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-md);
+  transition: var(--transition-fast);
+}
+.net-speed-item:hover { background: rgba(0, 0, 0, 0.25); transform: translateY(-1px); }
+.net-speed-arrow { flex-shrink: 0; }
+.net-speed-arrow.down { color: var(--info); }
+.net-speed-arrow.up { color: var(--warning); }
+.net-speed-info { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.net-speed-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.net-speed-value {
+  font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.net-speed-divider { width: 1px; height: 60px; background: var(--border-color); flex-shrink: 0; }
+.net-speed-total-row { font-size: 11px; color: var(--text-muted); text-align: center; }
+.net-speed-total-row strong { color: var(--text-secondary); }
+
+/* Speed Bar */
+.net-speed-bar-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.net-speed-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.net-speed-dl-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.net-speed-ul-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.net-speed-dl-fill.mid { background: linear-gradient(90deg, #3b82f6, #f59e0b); }
+.net-speed-dl-fill.high { background: linear-gradient(90deg, #3b82f6, #ef4444); }
+.net-speed-ul-fill.mid { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.net-speed-ul-fill.high { background: #ef4444; }
+
+body.light-theme .net-speed-item { background: rgba(0, 0, 0, 0.04); }
+body.light-theme .net-speed-item:hover { background: rgba(0, 0, 0, 0.08); }
+body.light-theme .net-speed-bar-track { background: rgba(0, 0, 0, 0.08); }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .net-speed-row { grid-template-columns: 1fr; }
+  .net-speed-divider { display: none; }
+}

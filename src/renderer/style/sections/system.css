@@ -1,0 +1,18 @@
+/* ============================================
+   🖥️ SYSTEM SECTION - System info cards
+   ============================================ */
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.system-card {
+  padding: 18px 20px;
+}
+.system-card h3 {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 12px; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.system-card h3 svg { color: var(--accent-primary); }

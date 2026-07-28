@@ -1,0 +1,49 @@
+/* ============================================
+   🔋 BATTERY SECTION - Battery gauge & info cards
+   ============================================ */
+
+.battery-main-card {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px; margin-bottom: 20px;
+}
+.battery-visual { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.battery-visual canvas { display: block; }
+.battery-center-content {
+  position: absolute; display: flex; flex-direction: column;
+  align-items: center; gap: 2px; pointer-events: none;
+}
+.battery-value { font-size: 28px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.battery-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; }
+.battery-details {
+  display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; width: 100%;
+}
+.battery-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 14px; background: rgba(0, 0, 0, 0.15); border-radius: var(--radius-sm);
+}
+.battery-stat-label { font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+.battery-stat-value { font-size: 13px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+body.light-theme .battery-stat { background: rgba(0, 0, 0, 0.04); }
+
+.battery-info-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.dev-detail-card {
+  padding: 16px 18px;
+}
+.dev-detail-card h4 {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 10px; letter-spacing: 0.4px;
+  display: flex; align-items: center;
+}
+.info-rows-small { display: flex; flex-direction: column; gap: 6px; }
+
+.no-battery-message {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 40px 20px; text-align: center;
+}
+.no-battery-message svg { width: 48px; height: 48px; color: var(--text-muted); opacity: 0.4; }
+.no-battery-message p { font-size: 13px; color: var(--text-muted); }

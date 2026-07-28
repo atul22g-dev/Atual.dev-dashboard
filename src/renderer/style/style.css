@@ -1,0 +1,236 @@
+/* ============================================================
+   🎨 MAIN STYLESHEET - Base styles, variables, layout
+   ============================================================
+   📚 Section-specific styles are in style/sections/*.css
+   ============================================================ */
+
+/* ── CSS Variables (Design Tokens) ── */
+:root {
+  --bg-primary: #0d0d1a;
+  --bg-secondary: #13132a;
+  --bg-card: #1a1a35;
+  --text-primary: #f0f0f5;
+  --text-secondary: #a0a0b8;
+  --text-muted: #5c5c72;
+  --accent-primary: #6366f1;
+  --accent-secondary: #8b5cf6;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --gradient-accent: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --sidebar-width: 220px;
+  --titlebar-height: 44px;
+}
+
+/* Light theme overrides */
+body.light-theme {
+  --bg-primary: #f5f5fa;
+  --bg-secondary: #eeeeff;
+  --bg-card: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #5a5a72;
+  --text-muted: #8888a0;
+  --border-color: rgba(0, 0, 0, 0.06);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── App Layout ── */
+.app-container {
+  display: flex;
+  flex-direction: row;
+  height: calc(100vh - var(--titlebar-height));
+}
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Custom Title Bar ── */
+.title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--titlebar-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+.title-bar-drag { display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
+.app-brand { display: flex; align-items: center; gap: 8px; }
+.app-logo { color: var(--accent-primary); }
+.app-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.3px; }
+
+/* ── Window Controls ── */
+.window-controls { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+.win-btn {
+  width: 36px; height: 28px; border: none; background: transparent;
+  border-radius: 4px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; color: var(--text-muted);
+  transition: var(--transition-fast);
+}
+.win-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.win-close:hover { background: #e81123; color: white; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.sidebar-header {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px 16px 16px; gap: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+.sidebar-logo { color: var(--accent-primary); margin-bottom: 4px; }
+.sidebar-title { font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.3px; }
+.sidebar-subtitle { font-size: 10px; font-weight: 500; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+/* ── Navigation ── */
+.sidebar-nav { display: flex; flex-direction: column; padding: 8px; gap: 2px; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  text-decoration: none; font-size: 13px; font-weight: 500;
+  transition: var(--transition-fast);
+}
+.nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.nav-item.active { background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); font-weight: 600; }
+.nav-item svg { flex-shrink: 0; }
+
+/* ── Theme Toggle ── */
+.theme-toggle-wrapper { padding: 8px; border-top: 1px solid var(--border-color); }
+.theme-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 12px; border: none; background: transparent;
+  border-radius: var(--radius-sm); cursor: pointer;
+  color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  transition: var(--transition-fast);
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.theme-toggle-track {
+  width: 36px; height: 20px; background: rgba(255,255,255,0.1);
+  border-radius: 10px; position: relative; transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+.light-theme .theme-toggle-track { background: rgba(0,0,0,0.08); }
+.theme-toggle-thumb {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  background: var(--text-primary); border-radius: 50%;
+  transition: var(--transition-normal); display: flex;
+  align-items: center; justify-content: center;
+}
+.light-theme .theme-toggle-thumb { transform: translateX(16px); }
+.theme-toggle-icon { width: 10px; height: 10px; color: var(--bg-primary); }
+.theme-toggle-label { flex: 1; text-align: left; }
+.theme-toggle-keybind { font-size: 9px; color: var(--text-muted); font-weight: 400; }
+
+/* ── Sidebar Footer ── */
+.sidebar-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 12px 14px; border-top: 1px solid var(--border-color);
+}
+.status-indicator { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+.status-text { font-size: 10px; font-weight: 500; color: var(--text-muted); }
+.version-badge { font-size: 9px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.04); padding: 2px 8px; border-radius: 8px; }
+
+/* ── Main Content Area ── */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  padding-top: 16px;
+  background: var(--bg-primary);
+}
+.main-content::-webkit-scrollbar { width: 6px; }
+.main-content::-webkit-scrollbar-track { background: transparent; }
+.main-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+/* ── Dashboard Sections ── */
+.dashboard-section { display: none; }
+.dashboard-section.active { display: block; animation: fadeSlideIn 0.3s ease; }
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Section Headers ── */
+.section-header {
+  margin-bottom: 20px;
+  position: relative;
+}
+.section-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+.section-description {
+  font-size: 13px; color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── Glass Card (shared component) ── */
+.glass {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass);
+  transition: var(--transition-normal);
+}
+.glass:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.08);
+}
+
+/* ── Responsive Sidebar ── */
+@media (max-width: 768px) {
+  .sidebar { width: 56px; min-width: 56px; }
+  .sidebar-header { padding: 12px 8px; }
+  .sidebar-title, .sidebar-subtitle { display: none; }
+  .nav-item span { display: none; }
+  .nav-item { justify-content: center; padding: 10px; }
+  .theme-toggle-label, .theme-toggle-keybind { display: none; }
+  .theme-toggle { justify-content: center; }
+  .sidebar-footer { flex-direction: column; gap: 8px; }
+  .main-content { padding: 16px; }
+}
+
+/* ── Section Header Accent Bar ── */
+.section-header::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: var(--gradient-accent);
+  border-radius: 2px;
+}
