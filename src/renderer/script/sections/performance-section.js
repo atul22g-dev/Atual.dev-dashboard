@@ -1,11 +1,18 @@
 /* ============================================================
    ⚡ PERFORMANCE SECTION - Performance metrics + Live System Metrics
+   Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes, formatUptime, updateMetricBar, toggleMetricClass } from '../utils.js';
 import { cpuRingGauge, memRingGauge, vmRingGauge } from '../charts.js';
+import { formatCpuModel } from '../format.js';
 
-export function updatePerformancePage(info) {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+export function update(info) {
   const cpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
   $('cpuLoadValue').textContent = `${cpuLoad.toFixed(1)}%`;
   $('cpuLoadBar').style.width = `${cpuLoad}%`;
@@ -59,9 +66,7 @@ export function updatePerformancePage(info) {
     cpuRingGauge.setValue(cpuLoad);
     $('cpuGaugeValue').textContent = `${cpuLoad.toFixed(1)}%`;
     $('gaugeCpuCores').textContent = `${info.cpus}`;
-    const model = info.cpuModel || 'Unknown';
-    const shortModel = model.replace(/^\(R\)|\s*CPU|\s*@\s*[\d.]+GHz|\s*\d+\.\d+GHz|\s*\(.*?\)/gi, '').trim() || model.split('/')[0];
-    $('gaugeCpuModel').textContent = shortModel.length > 25 ? shortModel.substring(0, 22) + '...' : shortModel;
+    $('gaugeCpuModel').textContent = formatCpuModel(info.cpuModel);
     if (info.cpuSpeed && info.cpuSpeed > 0) {
       $('gaugeCpuSpeed').textContent = `${(info.cpuSpeed / 1000).toFixed(2)} GHz`;
     } else {
@@ -89,7 +94,9 @@ export function updatePerformancePage(info) {
       $('gaugeVmTotal').textContent = formatBytes(info.virtualMemory.total);
     }
   }
-
 }
 
-
+/** No timers or listeners to release. */
+export function destroy() {
+  // nothing to clean up
+}

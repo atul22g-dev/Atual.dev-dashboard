@@ -3,6 +3,7 @@
    ============================================================ */
 
 import { $ } from '../utils.js';
+import { isPermissionError } from '../format.js';
 
 /**
  * Set an element's text with query matches wrapped in <strong class="pkg-highlight">
@@ -36,13 +37,13 @@ function svgIcon(name) {
   return new DOMParser().parseFromString(ICONS[name], 'image/svg+xml').documentElement;
 }
 
-export let currentPkgType = 'npm';
-export let npmPackages = [];
-export let pipPackages = [];
+let currentPkgType = 'npm';
+let npmPackages = [];
+let pipPackages = [];
 let isLoadingPackages = false;
-export let lastFailedAction = null;
+let lastFailedAction = null;
 
-export async function loadPackages() {
+async function loadPackages() {
   if (isLoadingPackages) return;
   isLoadingPackages = true;
   try {
@@ -68,7 +69,7 @@ export async function loadPackages() {
   }
 }
 
-export function renderPackages(packages, filter) {
+function renderPackages(packages, filter) {
   const body = document.getElementById('pkgListBody');
   if (!body) return;
 
@@ -179,7 +180,7 @@ function _onPopupKeydown(e) {
   if (e.key === 'Escape') hidePackagePopup();
 }
 
-export function showPackagePopup(pkgName) {
+function showPackagePopup(pkgName) {
   // Find the package data from cache
   const cache = currentPkgType === 'npm' ? npmPackages : pipPackages;
   const pkg = cache.find(p => p.name === pkgName);
@@ -283,7 +284,7 @@ export function showPackagePopup(pkgName) {
   });
 }
 
-export function hidePackagePopup() {
+function hidePackagePopup() {
   if (_popupOverlay) {
     _popupOverlay.classList.remove('visible');
   }
@@ -294,7 +295,7 @@ function updatePackageCounts(packages, showing) {
   else $('pipCount').textContent = packages.length;
 }
 
-export function switchPackageTab(type) {
+function switchPackageTab(type) {
   if (type === currentPkgType) return;
   currentPkgType = type;
   document.querySelectorAll('.pkg-tab').forEach(t => t.classList.remove('active'));
@@ -336,7 +337,7 @@ function hideStatus() {
   if (status) { status.style.display = 'none'; clearTimeout(status._hideTimer); }
 }
 
-export function showActionLog(message) {
+function showActionLog(message) {
   const panel = $('pkgLogPanel');
   const content = $('pkgLogContent');
   if (!panel || !content) return;
@@ -361,7 +362,7 @@ async function retryWithElevation(action, type, name) {
   }
 }
 
-export async function handlePackageAction(action, pkgName) {
+async function handlePackageAction(action, pkgName) {
   const body = $('pkgListBody');
   const rows = body?.querySelectorAll('.pkg-row');
   let targetRow = null;
@@ -382,14 +383,10 @@ export async function handlePackageAction(action, pkgName) {
       return;
     }
     
-    // Check if the failure is a permission error
-    const msg = (result.message || '').toLowerCase();
-    const isPermissionError = msg.includes('eacces') ||
-      msg.includes('eperm') ||
-      msg.includes('access is denied') ||
-      msg.includes('permission denied');
+    // Check if the failure is a permission error (shared helper, format.js)
+    const isPermError = isPermissionError(result.message);
     
-    if (isPermissionError) {
+    if (isPermError) {
       // Auto-retry with elevated privileges
       showStatus(`Permission denied. Retrying with admin privileges...`);
       showActionLog(`Permission error: ${result.message}\nAttempting elevation...`);
@@ -423,7 +420,7 @@ export async function handlePackageAction(action, pkgName) {
   }
 }
 
-export async function checkAdminAndElevation() {
+async function checkAdminAndElevation() {
   try {
     const bar = $('pkgAdminBar');
     const adminText = $('pkgAdminText');
@@ -556,7 +553,7 @@ function showSuggestions(results) {
 /**
  * Debounced search for packages as user types
  */
-export function onInstallInput(e) {
+function onInstallInput(e) {
   const input = e.target;
   const query = input.value.trim();
   const type = input.id === 'pkgInstallInputNpm' ? 'npm' : 'pip';
@@ -615,7 +612,7 @@ document.addEventListener('click', (e) => {
 /**
  * Install a package with the current tab's input
  */
-export async function handleInstallPackage() {
+async function handleInstallPackage() {
   const input = getInstallInput();
   if (!input) return;
   const pkgName = input.value.trim();
@@ -643,14 +640,10 @@ export async function handleInstallPackage() {
       return;
     }
     
-    // Check if the failure is a permission error
-    const msg = (result.message || '').toLowerCase();
-    const isPermissionError = msg.includes('eacces') ||
-      msg.includes('eperm') ||
-      msg.includes('access is denied') ||
-      msg.includes('permission denied');
+    // Check if the failure is a permission error (shared helper, format.js)
+    const isPermError = isPermissionError(result.message);
     
-    if (isPermissionError) {
+    if (isPermError) {
       // Auto-retry with elevated privileges
       showStatus(`Permission denied. Retrying with admin privileges...`);
       showActionLog(`Permission error: ${result.message}\nAttempting elevation...`);
@@ -682,4 +675,119 @@ export async function handleInstallPackage() {
     if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3v14M3 10h14"/></svg> Install'; }
     input.disabled = false; input.focus();
   }
+}
+
+// ──────────────────────────────────────────────
+// 🚀 SECTION LIFECYCLE (Contract: init / update / destroy — Phase 2)
+// ──────────────────────────────────────────────
+// The developer section is lazy: package data + admin status are only
+// fetched when the section is initialized (or the user hits refresh),
+// never on the global refresh cycle.
+
+/** One-time setup: wire package DOM listeners + load data + check admin. */
+export function init() {
+  $('pkgElevateBtn')?.addEventListener('click', retryElevationFromBar);
+  $('pkgTabNpm')?.addEventListener('click', () => switchPackageTab('npm'));
+  $('pkgTabPip')?.addEventListener('click', () => switchPackageTab('pip'));
+
+  const pkgSearch = $('pkgSearch');
+  if (pkgSearch) {
+    pkgSearch.addEventListener('input', (e) => {
+      const cache = currentPkgType === 'npm' ? npmPackages : pipPackages;
+      renderPackages(cache, e.target.value);
+    });
+  }
+
+  $('pkgRefreshBtn')?.addEventListener('click', () => loadPackages());
+
+  // Install inputs for both npm and pip tabs
+  ['Npm', 'Pip'].forEach(suffix => {
+    const installInput = $(`pkgInstallInput${suffix}`);
+    const installBtn = $(`pkgInstallBtn${suffix}`);
+    if (installInput) {
+      installInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleInstallPackage(); });
+      installInput.addEventListener('input', onInstallInput);
+    }
+    if (installBtn) installBtn.addEventListener('click', () => handleInstallPackage());
+  });
+
+  $('pkgLogClose')?.addEventListener('click', () => {
+    const panel = $('pkgLogPanel');
+    if (panel) panel.style.display = 'none';
+  });
+
+  document.getElementById('pkgListBody')?.addEventListener('click', (e) => {
+    // Click on package name → show details popup
+    const nameEl = e.target.closest('.pkg-name');
+    if (nameEl) {
+      const row = nameEl.closest('.pkg-row');
+      const pkgName = row?.dataset?.pkgName;
+      if (pkgName) { showPackagePopup(pkgName); return; }
+    }
+    // Click on action button → update/delete
+    const btn = e.target.closest('.pkg-action-btn');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const pkgName = btn.dataset.pkg;
+    if (action && pkgName) handlePackageAction(action, pkgName);
+  });
+
+  // Lazy-load on first paint of the developer section
+  loadPackages();
+  checkAdminAndElevation();
+}
+
+/** Developer data is loaded on demand (init / refresh button), never on the refresh cycle. */
+export function update() {
+  // no-op — packages are lazy-loaded
+}
+
+/** Release debounce timers + popup listeners owned by this section. */
+export function destroy() {
+  clearTimeout(_searchTimers.npm);
+  clearTimeout(_searchTimers.pip);
+  _searchTimers.npm = null;
+  _searchTimers.pip = null;
+  const status = $('pkgStatus');
+  if (status) clearTimeout(status._hideTimer);
+  if (_popupOverlay) {
+    document.removeEventListener('keydown', _onPopupKeydown);
+    _popupOverlay.remove();
+    _popupOverlay = null;
+  }
+}
+
+/**
+ * Retry the last failed package action with elevated (admin) privileges.
+ * (Moved from app.js into the section in Phase 2.)
+ */
+async function retryElevationFromBar() {
+  if (!lastFailedAction) {
+    $('pkgAdminText').textContent = '⚠️ No failed action to retry. Try installing/updating a package first.';
+    return;
+  }
+  const btn = $('pkgElevateBtn');
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span class="pkg-install-spinner"></span> Elevating...';
+  $('pkgAdminText').textContent = `Retrying with admin privileges: ${lastFailedAction.action} ${lastFailedAction.name}...`;
+  try {
+    const { action, type, name } = lastFailedAction;
+    // 🛡️ Phase 1 — send ONLY structured (action, type, name); the main process
+    // validates them and builds the command itself. The renderer never
+    // supplies a command string.
+    const result = await window.electronAPI.elevatePackage(action, type, name);
+    if (result.success) {
+      $('pkgAdminText').textContent = `✅ ${action === 'delete' ? 'Uninstalled' : action === 'update' ? 'Updated' : 'Installed'} ${name} with admin privileges!`;
+      $('pkgAdminIndicator').className = 'pkg-admin-indicator success';
+      showActionLog(result.message || 'Done.');
+      lastFailedAction = null;
+      setTimeout(() => loadPackages(), 1500);
+    } else {
+      $('pkgAdminText').textContent = `⚠️ Failed: ${result.message}`;
+      $('pkgAdminIndicator').className = 'pkg-admin-indicator warning';
+      showActionLog(result.message || 'Unknown error');
+    }
+  } catch (err) { $('pkgAdminText').textContent = '⚠️ Elevation failed: ' + err.message; }
+  finally { btn.disabled = false; btn.innerHTML = originalText; }
 }

@@ -1,22 +1,24 @@
 /* ============================================================
    🎯 DASHBOARD APP ORCHESTRATOR (ES Module Entry Point)
    ============================================================
-   Coordinates all dashboard sections, handles window controls,
-   theme toggle, navigation, and the auto-refresh cycle.
+   Coordinates all dashboard sections (init/update/destroy
+   contract), window controls, theme toggle, navigation, and the
+   auto-refresh cycle. All section logic lives in ./sections/*.js;
+   this file only wires them together. (Phase 2)
    ============================================================ */
 
-import { $, updateMetricBar, toggleMetricClass } from './utils.js';
+import { updateMetricBar, toggleMetricClass } from './utils.js';
 import { cpuRingGauge, memRingGauge, vmRingGauge } from './charts.js';
 import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts } from './charts.js';
-import { updateOverview } from './sections/overview-section.js';
-import { updatePerformancePage } from './sections/performance-section.js';
-import { updateNetworkPage, loadNetworkSpeed } from './sections/network-section.js';
-import { loadDiskInfo } from './sections/disk-section.js';
-import { loadProcesses, renderProcesses, processCache } from './sections/processes-section.js';
-import { loadPackages, checkAdminAndElevation, handlePackageAction, handleInstallPackage, showActionLog, onInstallInput } from './sections/developer-section.js';
-import { lastFailedAction, currentPkgType, npmPackages, pipPackages } from './sections/developer-section.js';
-import { switchPackageTab, renderPackages, showPackagePopup } from './sections/developer-section.js';
-import { batteryGauge, initBatteryGauge, loadBatteryInfo, loadBatteryDetails } from './sections/battery-section.js';
+import { THEME_STORAGE_KEY, REFRESH_INTERVAL_MS, DISK_INTERVAL_MS, PROCESS_INTERVAL_MS, NET_SPEED_INTERVAL_MS } from './constants.js';
+import { init as initOverview, update as updateOverview, destroy as destroyOverview } from './sections/overview-section.js';
+import { init as initSystem, update as updateSystem, destroy as destroySystem } from './sections/system-section.js';
+import { init as initPerformance, update as updatePerformance, destroy as destroyPerformance } from './sections/performance-section.js';
+import { init as initNetwork, update as updateNetwork, destroy as destroyNetwork, loadNetworkSpeed } from './sections/network-section.js';
+import { init as initDisk, update as updateDisk, destroy as destroyDisk } from './sections/disk-section.js';
+import { init as initProcesses, update as updateProcesses, destroy as destroyProcesses, processCache, renderProcesses } from './sections/processes-section.js';
+import { init as initBattery, update as updateBattery, destroy as destroyBattery } from './sections/battery-section.js';
+import { init as initDeveloper, update as updateDeveloper, destroy as destroyDeveloper } from './sections/developer-section.js';
 
 // ──────────────────────────────────────────────
 // 🧠 Virtual Memory Cache (persists across refresh cycles)
@@ -35,8 +37,6 @@ document.getElementById('closeBtn').addEventListener('click', () => window.elect
 // 🌓 THEME TOGGLE
 // ──────────────────────────────────────────────
 
-const STORAGE_KEY = 'atual-dev-dashboard-theme';
-
 const MOON_SVG = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
 const SUN_SVG = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
 
@@ -44,7 +44,7 @@ function applyTheme(isLight) {
   document.body.classList.toggle('light-theme', isLight);
   document.getElementById('themeLabel').textContent = isLight ? 'Light Mode' : 'Dark Mode';
   document.getElementById('themeIcon').innerHTML = isLight ? SUN_SVG : MOON_SVG;
-  localStorage.setItem(STORAGE_KEY, isLight ? 'light' : 'dark');
+  localStorage.setItem(THEME_STORAGE_KEY, isLight ? 'light' : 'dark');
 }
 
 function toggleTheme() {
@@ -60,7 +60,7 @@ function toggleTheme() {
 }
 
 try {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
   applyTheme(saved === 'light');
 } catch (e) { applyTheme(false); }
 
@@ -140,14 +140,15 @@ async function loadSystemInfo() {
         info.virtualMemory = vm;
         // Re-render sections that use virtual memory
         updateOverview(info);
-        updatePerformancePage(info);
+        updatePerformance(info);
       }
     }).catch(() => {});
+    updateSystem(info);
     updateOverview(info);
-    // Note: updateOverview() internally calls updateSystemPage()
-    updatePerformancePage(info);
-    updateNetworkPage(info);
-    loadBatteryInfo(info);
+    updatePerformance(info);
+    updateNetwork(info);
+    updateBattery(info);
+    updateDeveloper(info);
     updateCharts(info);
     loadCpuTempInfo();
     loadGpuTempInfo();
@@ -228,7 +229,7 @@ let netSpeedInterval = null;
 async function scheduleRefresh() {
   try { await loadSystemInfo(); }
   catch (err) { console.error('Refresh error:', err); }
-  refreshTimer = setTimeout(scheduleRefresh, 1500);
+  refreshTimer = setTimeout(scheduleRefresh, REFRESH_INTERVAL_MS);
 }
 
 function startAutoRefresh() { scheduleRefresh(); }
@@ -245,7 +246,15 @@ function stopAutoRefresh() {
   if (cpuRingGauge) cpuRingGauge.destroy();
   if (memRingGauge) memRingGauge.destroy();
   if (vmRingGauge) vmRingGauge.destroy();
-  if (batteryGauge) batteryGauge.destroy();
+  // Section teardown (battery/developer own real resources; the rest are no-ops)
+  destroySystem();
+  destroyOverview();
+  destroyPerformance();
+  destroyNetwork();
+  destroyDisk();
+  destroyProcesses();
+  destroyBattery();
+  destroyDeveloper();
 }
 
 // ──────────────────────────────────────────────
@@ -254,16 +263,22 @@ function stopAutoRefresh() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initCharts();
-  initBatteryGauge();
-  loadBatteryDetails();
+  initSystem();
+  initOverview();
+  initPerformance();
+  initNetwork();
+  initDisk();
+  initProcesses();
+  initBattery();
+  initDeveloper();
   startAutoRefresh();
 
-  loadDiskInfo();
-  loadProcesses();
+  updateDisk();
+  updateProcesses();
   loadNetworkSpeed();
-  diskInterval = setInterval(loadDiskInfo, 8000);
-  processInterval = setInterval(loadProcesses, 5000);
-  netSpeedInterval = setInterval(loadNetworkSpeed, 1500);
+  diskInterval = setInterval(updateDisk, DISK_INTERVAL_MS);
+  processInterval = setInterval(updateProcesses, PROCESS_INTERVAL_MS);
+  netSpeedInterval = setInterval(loadNetworkSpeed, NET_SPEED_INTERVAL_MS);
 
   const searchInput = document.getElementById('processSearch');
   if (searchInput) {
@@ -271,86 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
       renderProcesses(processCache, e.target.value);
     });
   }
-
-  loadPackages();
-  checkAdminAndElevation();
-
-  $('pkgElevateBtn')?.addEventListener('click', async () => {
-    if (!lastFailedAction) {
-      $('pkgAdminText').textContent = '⚠️ No failed action to retry. Try installing/updating a package first.';
-      return;
-    }
-    const btn = $('pkgElevateBtn');
-    btn.disabled = true;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span class="pkg-install-spinner"></span> Elevating...';
-    $('pkgAdminText').textContent = `Retrying with admin privileges: ${lastFailedAction.action} ${lastFailedAction.name}...`;
-    try {
-      const { action, type, name } = lastFailedAction;
-      // 🛡️ Phase 1 — send ONLY structured (action, type, name); the main process
-      // validates them and builds the command itself. The renderer never
-      // supplies a command string.
-      const result = await window.electronAPI.elevatePackage(action, type, name);
-      if (result.success) {
-        $('pkgAdminText').textContent = `✅ ${action === 'delete' ? 'Uninstalled' : action === 'update' ? 'Updated' : 'Installed'} ${name} with admin privileges!`;
-        $('pkgAdminIndicator').className = 'pkg-admin-indicator success';
-        showActionLog(result.message || 'Done.');
-        lastFailedAction = null;
-        setTimeout(() => loadPackages(), 1500);
-      } else {
-        $('pkgAdminText').textContent = `⚠️ Failed: ${result.message}`;
-        $('pkgAdminIndicator').className = 'pkg-admin-indicator warning';
-        showActionLog(result.message || 'Unknown error');
-      }
-    } catch (err) { $('pkgAdminText').textContent = '⚠️ Elevation failed: ' + err.message; }
-    finally { btn.disabled = false; btn.innerHTML = originalText; }
-  });
-
-  $('pkgTabNpm')?.addEventListener('click', () => switchPackageTab('npm'));
-  $('pkgTabPip')?.addEventListener('click', () => switchPackageTab('pip'));
-
-  const pkgSearch = $('pkgSearch');
-  if (pkgSearch) {
-    pkgSearch.addEventListener('input', (e) => {
-      const cache = currentPkgType === 'npm' ? npmPackages : pipPackages;
-      renderPackages(cache, e.target.value);
-    });
-  }
-
-  $('pkgRefreshBtn')?.addEventListener('click', () => loadPackages());
-
-  // Install inputs for both npm and pip tabs
-  ['Npm', 'Pip'].forEach(suffix => {
-    const installInput = $(`pkgInstallInput${suffix}`);
-    const installBtn = $(`pkgInstallBtn${suffix}`);
-    if (installInput) {
-      installInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleInstallPackage(); });
-      installInput.addEventListener('input', onInstallInput);
-    }
-    if (installBtn) installBtn.addEventListener('click', () => handleInstallPackage());
-  });
-
-  $('pkgLogClose')?.addEventListener('click', () => {
-    const panel = $('pkgLogPanel');
-    if (panel) panel.style.display = 'none';
-  });
-
-  document.getElementById('pkgListBody')?.addEventListener('click', (e) => {
-    // Click on package name → show details popup
-    const nameEl = e.target.closest('.pkg-name');
-    if (nameEl) {
-      // Find the parent row's data
-      const row = nameEl.closest('.pkg-row');
-      const pkgName = row?.dataset?.pkgName;
-      if (pkgName) { showPackagePopup(pkgName); return; }
-    }
-    // Click on action button → update/delete
-    const btn = e.target.closest('.pkg-action-btn');
-    if (!btn) return;
-    const action = btn.dataset.action;
-    const pkgName = btn.dataset.pkg;
-    if (action && pkgName) handlePackageAction(action, pkgName);
-  });
 
   window.addEventListener('beforeunload', stopAutoRefresh);
 });

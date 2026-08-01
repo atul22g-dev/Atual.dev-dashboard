@@ -1,12 +1,18 @@
 /* ============================================================
    📊 OVERVIEW SECTION - Dashboard Overview logic
-   Combined with System info (Device Info + Windows Info)
+   Contract: init() / update(info) / destroy() (Phase 2)
+   Note: system info (Device Info + Windows Info) is painted by
+   system-section.js — app.js calls both sections' update().
    ============================================================ */
 
 import { $, formatUptime } from '../utils.js';
-import { updateSystemPage } from './system-section.js';
 
-export function updateOverview(info) {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+export function update(info) {
   // ── Live CPU Load ──
   const cpuLoad = info.cpuUsage !== undefined
     ? info.cpuUsage
@@ -22,7 +28,9 @@ export function updateOverview(info) {
   $('uptime').textContent = formatUptime(info.uptime);
 
   // ── GPU Temp is fetched separately via loadGpuTempInfo() in app.js ──
+}
 
-  // ── System Details (merged from previously separate System section) ──
-  updateSystemPage(info);
+/** No timers or listeners to release. */
+export function destroy() {
+  // nothing to clean up
 }

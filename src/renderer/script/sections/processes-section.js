@@ -1,5 +1,6 @@
 /* ============================================================
    ⚙️ PROCESSES SECTION - Running processes list
+   Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes } from '../utils.js';
@@ -7,7 +8,12 @@ import { $, formatBytes } from '../utils.js';
 export let processCache = [];
 let isLoadingProcesses = false;
 
-export async function loadProcesses() {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+export async function update() {
   if (isLoadingProcesses) return;
   isLoadingProcesses = true;
   try {
@@ -77,4 +83,9 @@ export function renderProcesses(processes, filter) {
   $('processTotal').textContent = filtered.length;
   const totalMem = filtered.reduce((s, p) => s + p.memory, 0);
   $('processTotalMem').textContent = formatBytes(totalMem);
+}
+
+/** No timers or listeners to release (polling is owned by app.js). */
+export function destroy() {
+  // nothing to clean up
 }

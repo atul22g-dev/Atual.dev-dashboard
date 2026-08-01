@@ -106,21 +106,23 @@ The application should look and feel modern while keeping CPU, RAM, disk, and GP
 
 ## 2.3 Known Technical Debt
 
-- `main.js` is a large monolithic file.
-- Registry/package information must be safely escaped before entering HTML.
-- Renderer-provided values must never become arbitrary shell commands.
-- Several command executions require consistent timeout and buffer handling.
-- There are nested callback chains that should become async/await.
-- Canvas rendering needs proper HiDPI support.
-- Refresh intervals are hardcoded and not adaptive.
-- Hidden sections can perform unnecessary work.
-- DOM elements are repeatedly queried in hot paths.
-- There is no comprehensive automated test suite.
-- There is no complete CI pipeline.
-- Windows WMI/`wmic` usage should move toward PowerShell/CIM-first behavior.
-- The UI needs a modern Windows-oriented visual system.
-- The project needs measurable low-end PC performance targets.
-- The application needs a proper Windows packaging and release process.
+Status as of **2026-08-02** (Phases 0–2 complete): ✅ resolved · 🔄 in progress · ⏳ deferred.
+
+- ✅ ~~`main.js` is a large monolithic file.~~ → split in Phase 2 (`main.js` entry + `providers/*` + `ipc.js` + `config.js` + `exec-async.js`)
+- ✅ ~~Registry/package information must be safely escaped before entering HTML.~~ → Phase 1 (DOM-API rewriting, no unescaped dynamic HTML)
+- ✅ ~~Renderer-provided values must never become arbitrary shell commands.~~ → Phase 1 (validated `validators.js`, whitelisted elevation)
+- 🔄 Several command executions require consistent timeout and buffer handling. → all ~49 `exec()` sites have `timeout` + `maxBuffer` (Phase 1); centralized command service is Phase 3
+- ⏳ There are nested callback chains that should become async/await. → `exec-async.js` exists (Phase 2); full flattening is Phase 3
+- ⏳ Canvas rendering needs proper HiDPI support. → Phase 6
+- ⏳ Refresh intervals are hardcoded and not adaptive. → centralized in `constants.js` (Phase 2); smart/adaptive polling is Phase 6
+- ⏳ Hidden sections can perform unnecessary work. → Phase 6 (visibility-based work)
+- ⏳ DOM elements are repeatedly queried in hot paths. → Phase 6 (cache DOM refs)
+- ✅ ~~There is no automated test framework.~~ → `node --test` suite exists (24 tests: validators + evidence helpers); comprehensive coverage is Phase 5
+- ⏳ There is no complete CI pipeline. → Phase 5
+- ⏳ Windows WMI/`wmic` usage should move toward PowerShell/CIM-first behavior. → Phase 3/8
+- ⏳ The UI needs a modern Windows-oriented visual system. → Phase 7
+- 🔄 The project needs measurable low-end PC performance targets. → baseline measured in Phase 0 (`scripts/evidence.js measure`); targets enforced in Phase 6
+- ⏳ The application needs a proper Windows packaging and release process. → Phase 9
 
 ---
 
@@ -329,6 +331,8 @@ where compatible with the application architecture.
 **Priority:** P0  
 **Goal:** Turn the monolithic application into maintainable modules.
 
+**Status: ✅ COMPLETE** (2026-08-02) — see `plan-phase.md` §2 for evidence. A final dead-code sweep (Phase 2.4) removed unused exports, unused imports, dead snapshot fields, and the `osInstallDate` probe.
+
 ## 6.1 Main process
 
 Split the large main process into:
@@ -415,10 +419,19 @@ Move reusable logic into these modules.
 
 ### Exit criteria
 
-- [ ] Main process is no longer a monolith.
-- [ ] Renderer sections use consistent lifecycle methods.
-- [ ] Shared logic is not duplicated.
-- [ ] No behavior regression.
+- [x] Main process is no longer a monolith.
+- [x] Renderer sections use consistent lifecycle methods.
+- [x] Shared logic is not duplicated.
+- [x] No behavior regression.
+
+## 6.4 Dead-code cleanup (Phase 2 follow-up, 2026-08-02)
+
+- [x] Remove unused exports (renderer + main): de-exported `ChartEngine`/`DonutChart`/history arrays in `charts.js`, `diskInfoCache`/`renderDiskInfo` in `disk-section.js`, and all non-lifecycle exports in `developer-section.js` (only `init()/update()/destroy()` remain exported)
+- [x] Remove unused imports: `$` in `app.js`, `formatBytes` in `battery-section.js`
+- [x] Trim unused exports from `validators.js` (`MAX_NAME_LENGTH`, `MAX_QUERY_LENGTH` stay module-private)
+- [x] Remove dead snapshot fields + probe: `osInstallDate`/`getOsInstallDate()` (and its `fs` + WMIC/PowerShell machinery), `nodeVersion`/`electronVersion`/`chromeVersion`/`v8Version`, `homedir`, `tmpdir` in `system.js` — never consumed by the renderer
+- [x] Remove dead `DonutChart` methods (`getTextColor`, `getMutedColor`)
+- [x] Verify: `npm test` 24/24 pass · `node --check` clean on all modified files · no remaining references to removed symbols
 
 ---
 

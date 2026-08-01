@@ -15,7 +15,7 @@
 |---|-------|----------|--------|
 | 0 | Baseline & Audit | P1 | ✅ |
 | 1 | Security Hardening | P0 | ✅ |
-| 2 | Architecture (split main.js) | P0 | ⏳ |
+| 2 | Architecture (split main.js) | P0 | ✅ |
 | 3 | Reliability | P1 | ⏳ |
 | 4 | TypeScript + Vite Foundation | P1 | ⏳ |
 | 5 | Testing & CI | P1 | ⏳ |
@@ -31,7 +31,7 @@
 
 **Goal:** Record the exact starting state before security fixes, refactoring, optimization, UI redesign, or TypeScript/Vite migration.
 
-**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict.
+**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict. **Phases 0–2 complete (2026-08-02)** — baseline, security hardening, and architecture (main.js split + renderer section contract) all done; Phase 3 next.
 
 ---
 
@@ -617,15 +617,77 @@ Key baseline facts:
 
 ---
 
-# ⏳ Phase 2 — Architecture (P0)
+# ✅ Phase 2 — Architecture (P0)
 
 **Goal:** split the monolith, standardize the renderer. Unlocks Phase 5. Details in `plan.md` §2.
 
-- [ ] Split `src/main/main.js` (1,821 LOC) → `main.js` (entry) + `providers/*` + `exec-async.js` + `config.js` + `ipc.js`
-- [ ] Standardize section contract: `init()/update()/destroy()` in all 8 sections
-- [ ] Extract shared helpers: `format.js` (`formatSpeed`, `formatCpuModel`, `isPermissionError`), `constants.js`
+**Status:** ✅ COMPLETE (2026-08-02) — main.js split into providers/IPC/config, all 8 sections standardized on `init()/update()/destroy()`, shared helpers extracted. Verified by unit tests, react-doctor, and a real in-app boot (`script:Phase1`). True lazy-init of the Developer tab is deferred to Phase 6 (current init() matches pre-Phase-2 startup behavior).
 
-**Verification:** app boots + all 7 sections render; `react-doctor` still 100/100.
+## 2.1 Completed
+
+- [x] **Split `src/main/main.js` (1,821 LOC) → `main.js` (entry) + `providers/*` + `exec-async.js` + `config.js` + `ipc.js`**
+  - `main.js` is now a 117-LOC entry: window creation, app lifecycle, `registerIpcHandlers(() => mainWindow)`
+  - `src/main/providers/`: `system.js`, `disk.js`, `battery.js`, `temperature.js`, `network.js`, `processes.js`, `packages.js`
+  - `ipc.js` registers all 18 `ipcMain.handle` channels + 3 window-control `ipcMain.on`; `config.js` holds window geometry/paths/limits; `exec-async.js` promisifies `exec`
+  - Provider export surfaces trimmed to exactly what `ipc.js` consumes (no dead exports); `execAsync` is used by the package provider
+- [x] **Standardize section contract: `init()/update()/destroy()` in all 8 sections**
+  - `sections/{system,overview,performance,network,disk,processes,battery,developer}-section.js` all expose the lifecycle
+  - `app.js` rewritten as pure orchestrator: aliased imports (`update as updateOverview` etc.), calls `updateSystem/updateOverview/updatePerformance/updateNetwork/updateBattery/updateCharts` per refresh; slow polls (`updateDisk` 8 s, `updateProcesses` 5 s, `loadNetworkSpeed` 1.5 s); `stopAutoRefresh` calls all 8 `destroy()` + chart/gauge destroys
+  - `developer-section.js`: package DOM wiring + elevation-retry moved into `init()`; `update()` is a documented no-op (lazy data); `destroy()` clears search timers/popup/status timers
+- [x] **Extract shared helpers: `format.js` (`formatSpeed`, `formatCpuModel`, `isPermissionError`), `constants.js`**
+  - `format.js` consumed by network/performance/developer sections; `constants.js` (`REFRESH_INTERVAL_MS`, `DISK_INTERVAL_MS`, `PROCESS_INTERVAL_MS`, `NET_SPEED_INTERVAL_MS`, `THEME_STORAGE_KEY`) consumed by `app.js`
+  - Two duplicated inline permission checks in `developer-section.js` replaced with shared `isPermissionError`; `getNetBarPercent`/`renderNetworkSpeed` de-exported (internal-only)
+
+## 2.2 Verification
+
+- [x] Unit tests: `npm test` → **24/24 pass**
+- [x] `npx react-doctor@latest` → **No issues found** (0 Security, 0 Maintainability; React rules gated off — informational for this non-React app)
+- [x] Boot check: `npm run script:Phase1` → **EXIT 0, status `completed`, 0 renderer console errors**; hostile `installPackage('npm','lodash;calc')` still rejected → `"Invalid package name"` (no Phase 1 regression); app boots with the new split main.js + rewritten app.js (verified via `verify/phase1-report.json`)
+
+## 2.3 Remaining / deferred
+
+- [ ] Developer tab true lazy-init (no npm/pip scanning until opened) → Phase 6 (visibility-based rendering)
+
+## 2.4 Dead-Code Cleanup (2026-08-02)
+
+A post-Phase-2 sweep removed unused exports, unused imports, dead snapshot
+fields, and one dead probe. No behavior change — only smaller, cleaner surfaces.
+
+> **No dead files:** every file in the repo is referenced (`src/**` all imported,
+> `scripts/*` all wired in `package.json`, `test/*` picked up by `node --test`).
+> `stability/`, `verify/`, `screenshots/` are gitignored output dirs, not source
+> — so nothing was deleted, only dead code within live files.
+
+### Removed
+
+- **Renderer exports (now module-private):** `ChartEngine`, `DonutChart`,
+  `cpuHistory`/`memHistory`/`vmHistory` in `charts.js` (all only used
+  internally); `diskInfoCache`/`renderDiskInfo` in `disk-section.js`;
+  `currentPkgType`, `npmPackages`, `pipPackages`, `lastFailedAction`,
+  `loadPackages`, `renderPackages`, `showPackagePopup`, `hidePackagePopup`,
+  `switchPackageTab`, `showActionLog`, `handlePackageAction`,
+  `checkAdminAndElevation`, `onInstallInput`, `handleInstallPackage` in
+  `developer-section.js` (only `init()/update()/destroy()` remain exported —
+  the app.js import surface is now exactly the section contract)
+- **Unused imports:** `$` in `app.js`; `formatBytes` in `battery-section.js`
+- **Unused exports:** `MAX_NAME_LENGTH`, `MAX_QUERY_LENGTH` in `validators.js`
+  (stay defined + used internally, just not exported)
+- **Dead methods:** `DonutChart.getTextColor()`/`getMutedColor()` (never called)
+- **Dead snapshot fields + probe in `system.js`:** `osInstallDate` field and its
+  entire `getOsInstallDate()` machinery (registry-hive `fs.statSync` + WMIC +
+  PowerShell fallbacks + `_cachedOsInstallDate`) — never rendered anywhere;
+  `nodeVersion`, `electronVersion`, `chromeVersion`, `v8Version`, `homedir`,
+  `tmpdir` fields — never consumed by any renderer section. Also dropped the
+  now-unused `fs` require.
+
+### Verification
+
+- [x] `npm test` → **24/24 pass** (no test imports any removed export)
+- [x] `node --check` clean on all 7 modified files
+- [x] Grep confirms zero remaining references to removed symbols/fields
+- [x] Full-surface audit: every remaining renderer import resolves; every
+      exported provider surface is still consumed by `ipc.js`
+
 
 ---
 
@@ -791,6 +853,10 @@ A phase is complete only when its verification evidence exists.
 | 2026-08-01 | 0 | Tooling | `scripts/evidence.js` created (measure + capture) |
 | 2026-08-01 | 1 | script:Phase1 run (23:17) | 32/32 hostile probes rejected · 6/6 hostile search queries → `[]` · UI install shows rejection · 0 console errors → `verify/phase1-report.json` |
 | 2026-08-01 | 1 | react-doctor cleanup | 4× dangerous-html-sink fixed (DOM-API rewrite in developer/disk/processes sections — textContent now provides escaping); `escapeHtml`/`escapeAttr` removed from utils.js as unused dead code → `npx react-doctor@latest --verbose` reports **0 issues** |
+| 2026-08-02 | 2 | main.js split | 1,821-LOC monolith → 117-LOC entry + `providers/*` + `ipc.js` + `config.js` + `exec-async.js`; provider exports trimmed to ipc.js consumption; 24/24 tests · react-doctor 0 issues · `script:Phase1` boot EXIT 0, 0 console errors, hostile `lodash;calc` rejected |
+| 2026-08-02 | 2 | Renderer contract | all 8 sections expose `init()/update()/destroy()`; app.js rewritten as orchestrator (aliased imports, `constants.js` intervals, all `destroy()`s on teardown); shared `format.js` + `constants.js` extracted; developer DOM wiring + elevation-retry moved into section `init()` |
+| 2026-08-02 | 2 | Dead-code cleanup | de-exported internal-only renderer symbols (charts/disk/developer sections), removed unused imports (`$` app.js, `formatBytes` battery), trimmed `validators.js` exports, deleted dead `DonutChart` methods, removed never-rendered snapshot fields + `osInstallDate` probe from `system.js` (incl. its `fs`/WMIC/PowerShell machinery) → 24/24 tests · `node --check` clean · no dangling references |
+| 2026-08-02 | 2 | Docs sync | README.md rewritten to match Phase 2 architecture (providers/ipc/config/exec-async tree, section lifecycle contract, accurate commands incl. `npm test`/`npm run doctor`, roadmap pointers); plan.md §2.3 debt list annotated with resolved/deferred status |
 
 ---
 

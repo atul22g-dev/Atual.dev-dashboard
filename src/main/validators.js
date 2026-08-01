@@ -125,8 +125,6 @@ module.exports = {
   PACKAGE_TYPES,
   PACKAGE_ACTIONS,
   PACKAGE_NAME_RE,
-  MAX_NAME_LENGTH,
-  MAX_QUERY_LENGTH,
   validatePackageType,
   validatePackageAction,
   validatePackageName,

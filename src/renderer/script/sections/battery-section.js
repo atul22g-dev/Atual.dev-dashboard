@@ -1,11 +1,12 @@
 /* ============================================================
    🔋 BATTERY SECTION - Power status and battery metrics
+   Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatBytes, formatUptime, formatPlatform } from '../utils.js';
+import { $, formatUptime, formatPlatform } from '../utils.js';
 import { RingGauge } from '../gauges.js';
 
-export let batteryGauge = null;
+let batteryGauge = null;
 let _batteryDetails = null;
 const _batteryLevelHistory = [];
 
@@ -31,7 +32,7 @@ function hideEmptyBatteryCards() {
   });
 }
 
-export function initBatteryGauge() {
+function initBatteryGauge() {
   batteryGauge = new RingGauge('batteryGauge', {
     ringWidth: 12,
     lowThreshold: 30,
@@ -44,7 +45,22 @@ export function initBatteryGauge() {
   });
 }
 
-export async function loadBatteryInfo(info) {
+async function loadBatteryDetails() {
+  try {
+    const details = await window.electronAPI.getBatteryDetails();
+    _batteryDetails = details;
+  } catch (err) {
+    console.error('Failed to load battery details:', err);
+  }
+}
+
+/** Create the gauge + fetch static battery specs once. */
+export function init() {
+  initBatteryGauge();
+  loadBatteryDetails();
+}
+
+export async function update(info) {
   try {
     const bat = await window.electronAPI.getBatteryInfo();
 
@@ -143,11 +159,12 @@ export async function loadBatteryInfo(info) {
   }
 }
 
-export async function loadBatteryDetails() {
-  try {
-    const details = await window.electronAPI.getBatteryDetails();
-    _batteryDetails = details;
-  } catch (err) {
-    console.error('Failed to load battery details:', err);
+/** Destroy the ring gauge and reset state. */
+export function destroy() {
+  if (batteryGauge) {
+    batteryGauge.destroy();
+    batteryGauge = null;
   }
+  _batteryDetails = null;
+  _batteryLevelHistory.length = 0;
 }

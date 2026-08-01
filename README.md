@@ -41,29 +41,43 @@ npm run dev
 ```
 atual-dev-dashboard/
 ├── src/
-│   ├── main/
-│   │   └── main.js                # 🧠 Main process (Node.js backend)
+│   ├── main/                          # 🧠 Main process (Node.js backend)
+│   │   ├── main.js                    # 🚀 Entry point: window + app lifecycle
+│   │   ├── config.js                  # ⚙️ Window geometry, paths, safety limits
+│   │   ├── ipc.js                     # 🔌 Every ipcMain.handle/on registration
+│   │   ├── exec-async.js              # ⏱️ Promisified child_process.exec
+│   │   ├── validators.js              # 🛡️ Phase 1 input validation (pure, tested)
+│   │   └── providers/                 # 📡 System data collectors
+│   │       ├── system.js              #   CPU, memory, OS edition/version/activation, GPU
+│   │       ├── disk.js                #   Storage drive utilization
+│   │       ├── battery.js             #   Battery level & specs
+│   │       ├── temperature.js         #   CPU/GPU temperature
+│   │       ├── network.js             #   Network transfer speed
+│   │       ├── processes.js           #   Running process list
+│   │       └── packages.js            #   npm/pip ops + whitelisted elevation
 │   ├── preload/
-│   │   └── preload.js             # 🔌 Secure bridge (contextBridge)
+│   │   └── preload.js                 # 🔌 Secure bridge (contextBridge)
 │   └── renderer/
-│       ├── index.html              # 📄 HTML shell
+│       ├── index.html                 # 📄 HTML shell
 │       ├── script/
-│       │   ├── app.js              # 🎯 App orchestrator (entry point)
-│       │   ├── charts.js           # 📈 Line charts & donut chart engine
-│       │   ├── gauges.js           # ⭕ Animated ring gauge component
-│       │   ├── utils.js            # 🧰 Shared helpers (formatBytes, $, etc.)
-│       │   └── sections/
-│       │       ├── overview-section.js     # Dashboard overview + system info
-│       │       ├── performance-section.js  # CPU/Memory bars, gauges, charts
-│       │       ├── developer-section.js    # npm/pip package manager
-│       │       ├── network-section.js      # Network interfaces & speed
-│       │       ├── disk-section.js         # Storage drive utilization
-│       │       ├── processes-section.js    # Running processes table
-│       │       ├── battery-section.js      # Battery gauge & power status
-│       │       └── system-section.js       # OS details (imported by overview)
+│       │   ├── app.js                 # 🎯 App orchestrator (entry point)
+│       │   ├── charts.js              # 📈 Line charts & donut chart engine
+│       │   ├── gauges.js              # ⭕ Animated ring gauge component
+│       │   ├── utils.js               # 🧰 Shared DOM/format helpers
+│       │   ├── format.js              # 🎨 Shared formatters (speed, CPU model, errors)
+│       │   ├── constants.js           # ⚙️ Refresh intervals + theme storage key
+│       │   └── sections/              # 🧩 One module per section (init/update/destroy)
+│       │       ├── overview-section.js       # Dashboard overview
+│       │       ├── system-section.js         # Device + Windows info cards
+│       │       ├── performance-section.js    # CPU/Memory bars, gauges, charts
+│       │       ├── developer-section.js      # npm/pip package manager
+│       │       ├── network-section.js        # Network interfaces & speed
+│       │       ├── disk-section.js           # Storage drive utilization
+│       │       ├── processes-section.js      # Running processes table
+│       │       └── battery-section.js        # Battery gauge & power status
 │       └── style/
-│           ├── style.css                    # Global styles + theme variables
-│           └── sections/
+│           ├── style.css                     # Global styles + theme variables
+│           └── sections/                     # Per-section styles
 │               ├── overview.css
 │               ├── performance.css
 │               ├── developer.css
@@ -71,11 +85,21 @@ atual-dev-dashboard/
 │               ├── disk.css
 │               ├── processes.css
 │               └── battery.css
+├── scripts/                         # 🧪 Verification & evidence tooling
+│   ├── evidence.js                  #   Phase 0 measure / capture / all
+│   ├── launch-stability.js          #   Detached 30-min stability launch
+│   ├── stability-harness.js         #   30-min stability test harness
+│   └── verify-phase1.js             #   In-app hostile-package verification
+├── test/                            # 🧪 Unit tests (node --test)
+│   ├── validators.test.js           #   Phase 1 validators (13 tests)
+│   └── evidence.test.js             #   Phase 0 tool helpers
 ├── assets/
-│   └── icon.png                    # App icon
+│   └── icon.png                     # App icon
 ├── package.json
 ├── .gitignore
-└── README.md                       # 📖 You are here!
+├── plan.md                          # 🗺️ Master roadmap
+├── plan-phase.md                    # 📊 Phase tracker & evidence log
+└── README.md                        # 📖 You are here!
 ```
 
 ---
@@ -94,13 +118,14 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
                      │  Node.js APIs
                      ▼
 ┌──────────────────────────────────────────────────────────┐
-│              🧠 MAIN PROCESS (main.js)                     │
+│              🧠 MAIN PROCESS (main.js → providers/)        │
 │                                                           │
-│  • Reads system data via `os`, `child_process`, WMI       │
+│  • providers/* read system data via `os`, `exec`, WMI     │
+│  • ipc.js registers every channel (single registration    │
+│    point — no monolith)                                   │
 │  • Manages the BrowserWindow                              │
-│  • Handles IPC requests from the renderer                 │
 │  • Caches expensive data to avoid repeated exec() calls   │
-│  • Runs elevated commands (UAC) when needed               │
+│  • Runs validated, whitelisted elevated commands (UAC)    │
 └────────────────────┬─────────────────────────────────────┘
                      │  IPC (ipcMain / ipcRenderer)
                      ▼
@@ -118,6 +143,7 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 │                                                           │
 │  • Pure frontend: HTML, CSS, ES modules                  │
 │  • No Node.js access (security: sandbox + isolation)      │
+│  • app.js orchestrates sections via init/update/destroy   │
 │  • Calls window.electronAPI.* to fetch system data        │
 │  • Renders live charts, gauges, and section content       │
 └──────────────────────────────────────────────────────────┘
@@ -127,9 +153,9 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 
 1. **App starts** → `main.js` creates a `BrowserWindow` and loads `index.html`
 2. **Render cycle** (every 1.5s): `app.js` calls `window.electronAPI.getSystemInfo()` via IPC
-3. **Main process** gathers data using `os.cpus()`, `os.totalmem()`, `exec()` for disk/processes, WMI/PowerShell for Windows-specific info (OS edition, battery, temperature)
+3. **Main process** — each `providers/*` module gathers data (`os.cpus()`, `os.totalmem()`, `exec()` for disk/processes, WMI/PowerShell for Windows-specific info)
 4. **Data flows back** through the preload bridge
-5. **Renderer updates** — each section function (`updateOverview`, `updatePerformancePage`, etc.) is called with fresh data
+5. **Renderer updates** — `app.js` calls each section's `update()` with fresh data
 6. **Charts & gauges** animate smoothly via `requestAnimationFrame`
 
 ### Security
@@ -140,6 +166,7 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 | `contextIsolation` | `true` | Preload and webpage run in separate worlds |
 | `sandbox` | `true` | Extra OS-level sandboxing |
 | IPC bridge | Whitelist-only | Only specific functions are exposed via `contextBridge` |
+| Input validation | `validators.js` | Every renderer-supplied value validated before any shell/network call |
 
 ---
 
@@ -149,7 +176,7 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 Live summary of CPU load, memory usage, GPU temperature, and system uptime.
 Also shows Device Info (processor, RAM, GPU, storage, system type) and Windows Info (edition, version, activation).
 
-**File:** `overview-section.js` → `system-section.js`
+**Files:** `overview-section.js` + `system-section.js`
 
 ### ⚡ Performance
 - **CPU & Memory bars** — Color-coded progress bars (green → yellow → red)
@@ -158,7 +185,7 @@ Also shows Device Info (processor, RAM, GPU, storage, system type) and Windows I
 - **Donut chart** — Memory distribution (used vs free)
 - **Live metrics panel** — CPU, memory, temperature, load averages, free memory with bar animations
 
-**File:** `performance-section.js`, `charts.js`, `gauges.js`
+**Files:** `performance-section.js`, `charts.js`, `gauges.js`
 
 ### 📦 Developer (Package Manager)
 Manage globally installed npm and pip packages:
@@ -210,12 +237,12 @@ Manage globally installed npm and pip packages:
 | ✅ **Cross-platform** | Windows (WMI/PowerShell), macOS (pmset/ioreg), Linux (sysfs) |
 | ✅ **Process search** | Filter running processes by name instantly |
 | ✅ **Package manager** | Browse, install, update, and uninstall npm/pip global packages |
-| ✅ **Admin elevation** | Auto-retries permission failures with UAC prompt |
+| ✅ **Admin elevation** | Auto-retries permission failures with UAC prompt (whitelisted, validated) |
 | ✅ **Custom title bar** | Frameless window with minimize/maximize/close |
 | ✅ **GPU info** | Reads GPU model and VRAM via Electron + WMI fallback |
 | ✅ **CPU/GPU temperature** | Platform-specific thermal monitoring |
 | ✅ **Network speed** | Real-time download/upload rate monitoring |
-| ✅ **Secure** | `contextIsolation`, `sandbox`, no `nodeIntegration` |
+| ✅ **Secure** | `contextIsolation`, `sandbox`, no `nodeIntegration`, validated IPC inputs |
 
 ---
 
@@ -227,46 +254,73 @@ Manage globally installed npm and pip packages:
 |---------|-------------|
 | `npm start` | Launch the dashboard |
 | `npm run dev` | Launch with DevTools open |
-| `npm run dist` | Build installers for current platform |
+| `npm test` | Run unit tests (node --test, 24 tests) |
+| `npm run doctor` | Run React Doctor code-quality scan |
+| `npm run script:Phase1` | In-app security verification (boots real app, hostile probes) |
 | `npm run dist:win` | Build Windows installer (NSIS) |
 | `npm run dist:mac` | Build macOS DMG |
 | `npm run dist:linux` | Build Linux AppImage + deb |
+
+> **Note:** `npm run dist` (current-platform shorthand) is not defined — use the platform-specific commands above.
 
 ### Code Quality
 
 This project is scanned with **React Doctor** — a deterministic code-quality tool:
 
 ```bash
-npx react-doctor@latest
+npm run doctor
 ```
 
-Current score: **100/100** — all Bugs, Security, Performance, and Maintainability issues resolved.
+Current score: **100/100** — all Bugs, Security, Performance, and Maintainability issues resolved (React rules are informational for this non-React app; the security/maintainability signals are the real check).
 
 To check only new issues in a branch:
 ```bash
 npx react-doctor@latest --scope changed
 ```
 
+### Testing
+
+```bash
+npm test
+```
+
+Runs `node --test` across `test/` (24 tests): Phase 1 input validators + Phase 0 evidence-tool helpers. Zero external test dependencies.
+
 ### Project Conventions
 
 - **Main process** (`src/main/`): CommonJS (`require`/`module.exports`) — runs in Node.js
+- **Providers** (`src/main/providers/`): one module per data domain; only the surface consumed by `ipc.js` is exported
 - **Renderer** (`src/renderer/`): ES modules (`import`/`export`) — runs in browser context
-- **Each section** has its own JS module in `script/sections/` and CSS in `style/sections/`
-- **Shared utilities** live in `utils.js`
+- **Each section** (`script/sections/`) implements the `init()` / `update()` / `destroy()` lifecycle contract; `app.js` is the pure orchestrator
+- **Shared utilities** live in `utils.js`; **formatters** in `format.js`; **intervals/keys** in `constants.js`
 - **Charts and gauges** are in dedicated modules (`charts.js`, `gauges.js`) for separation of concerns
+
+---
+
+## 🗺️ Development Roadmap
+
+The project follows a phased modernization plan:
+
+| File | Purpose |
+|------|---------|
+| `plan.md` | Master roadmap: 11 phases from baseline → stable release |
+| `plan-phase.md` | Living tracker: status, evidence, measurements, progress log |
+
+**Status:** Phases 0–2 complete (baseline evidence, security hardening, architecture split + dead-code cleanup). Phase 3 (reliability) is next. See `plan-phase.md` for the full evidence log.
 
 ---
 
 ## 🏗️ Building for Distribution
 
 ```bash
-# Build for your current platform
-npm run dist
+# Windows NSIS installer
+npm run dist:win
 
-# Build for a specific platform
-npm run dist:win    # Windows NSIS installer
-npm run dist:mac    # macOS DMG
-npm run dist:linux  # Linux AppImage + deb
+# macOS DMG
+npm run dist:mac
+
+# Linux AppImage + deb
+npm run dist:linux
 ```
 
 The build configuration is in `package.json` under the `"build"` key. Output goes to the `dist/` directory.
@@ -284,5 +338,5 @@ MIT © Atual.dev
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing`)
 3. Make your changes
-4. Run `npx react-doctor@latest` to verify no regressions
+4. Run `npm test` and `npm run doctor` to verify no regressions
 5. Open a Pull Request

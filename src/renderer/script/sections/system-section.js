@@ -1,10 +1,16 @@
 /* ============================================================
    🖥️ SYSTEM SECTION - System information logic
+   Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
 import { $ } from '../utils.js';
 
-export function updateSystemPage(info) {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+export function update(info) {
   // ── Device Info (Windows System Information format) ──
   $('deviceName').textContent = info.hostname || 'Unknown';
   
@@ -50,6 +56,9 @@ export function updateSystemPage(info) {
   $('windowsEdition').textContent = info.osEdition || 'Detecting...';
   $('windowsVersion').textContent = info.osDisplayVersion || info.osRelease || 'Unknown';
   $('windowsActivation').textContent = info.osActivationStatus || '-';
+}
 
-
+/** No timers or listeners to release. */
+export function destroy() {
+  // nothing to clean up
 }

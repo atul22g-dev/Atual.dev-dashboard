@@ -9,7 +9,7 @@ import { RingGauge } from './gauges.js';
 // 📈 LINE CHART ENGINE
 // ──────────────────────────────────────────────
 
-export class ChartEngine {
+class ChartEngine {
   constructor(canvasId, options = {}) {
     this.canvas = document.getElementById(canvasId);
     if (!this.canvas) return;
@@ -528,7 +528,7 @@ export class ChartEngine {
 // 🍩 DONUT CHART (Memory Distribution)
 // ──────────────────────────────────────────────
 
-export class DonutChart {
+class DonutChart {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     if (!this.canvas) return;
@@ -602,13 +602,6 @@ export class DonutChart {
       : 'rgba(255, 255, 255, 0.05)';
   }
 
-  getTextColor() {
-    return document.body.classList.contains('light-theme') ? '#1a1a2e' : '#f0f0f5';
-  }
-
-  getMutedColor() {
-    return document.body.classList.contains('light-theme') ? '#8888a0' : '#5c5c72';
-  }
 }
 
 // ──────────────────────────────────────────────
@@ -617,9 +610,9 @@ export class DonutChart {
 
 const MAX_HISTORY = 60;
 
-export const cpuHistory = [0];
-export const memHistory = [0];
-export const vmHistory = [0];
+const cpuHistory = [0];
+const memHistory = [0];
+const vmHistory = [0];
 
 export let cpuLineChart = null;
 export let memLineChart = null;

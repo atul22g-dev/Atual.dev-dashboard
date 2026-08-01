@@ -1,28 +1,26 @@
 /* ============================================================
    🌐 NETWORK SECTION - Network stats, speed monitor
+   Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes, formatPlatform } from '../utils.js';
+import { formatSpeed } from '../format.js';
 
 let _netMaxSpeed = 1024 * 1024;
 
-export function getNetBarPercent(speedBps) {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+function getNetBarPercent(speedBps) {
   if (!speedBps || speedBps <= 0) return 0;
   _netMaxSpeed = Math.max(_netMaxSpeed * 0.95, speedBps * 1.2);
   const pct = (speedBps / _netMaxSpeed) * 100;
   return Math.min(pct, 100);
 }
 
-export function formatSpeed(bps) {
-  if (bps === null || bps === undefined) return '--';
-  if (bps < 0) return '--';
-  if (bps < 1000) return `${bps.toFixed(0)} B/s`;
-  if (bps < 1000000) return `${(bps / 1000).toFixed(1)} KB/s`;
-  if (bps < 1000000000) return `${(bps / 1000000).toFixed(2)} MB/s`;
-  return `${(bps / 1000000000).toFixed(2)} GB/s`;
-}
-
-export function updateNetworkPage(info) {
+export function update(info) {
   $('netHostname').textContent = info.hostname || '-';
   $('netPlatform').textContent = `${formatPlatform(info.platform)} ${info.arch}`;
 
@@ -94,7 +92,7 @@ export async function loadNetworkSpeed() {
   }
 }
 
-export function renderNetworkSpeed(data) {
+function renderNetworkSpeed(data) {
   const dlEl = document.getElementById('netDlSpeed');
   const ulEl = document.getElementById('netUlSpeed');
   const dlBar = document.getElementById('netDlBar');
@@ -122,4 +120,9 @@ export function renderNetworkSpeed(data) {
 
   if (totalRxEl && data.total) totalRxEl.textContent = formatBytes(data.total.rx);
   if (totalTxEl && data.total) totalTxEl.textContent = formatBytes(data.total.tx);
+}
+
+/** No timers or listeners to release (speed polling is owned by app.js). */
+export function destroy() {
+  // nothing to clean up
 }

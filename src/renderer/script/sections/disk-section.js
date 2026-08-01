@@ -1,12 +1,18 @@
 /* ============================================================
    💾 DISK SECTION - Storage device info
+   Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes } from '../utils.js';
 
-export let diskInfoCache = [];
+let diskInfoCache = [];
 
-export async function loadDiskInfo() {
+/** No persistent resources — this section only paints snapshots. */
+export function init() {
+  // nothing to set up
+}
+
+export async function update() {
   try {
     const disks = await window.electronAPI.getDiskInfo();
     diskInfoCache = disks;
@@ -16,7 +22,7 @@ export async function loadDiskInfo() {
   }
 }
 
-export function renderDiskInfo(disks) {
+function renderDiskInfo(disks) {
   const grid = document.getElementById('diskGrid');
   if (!grid) return;
 
@@ -86,4 +92,9 @@ export function renderDiskInfo(disks) {
   $('diskTotalUsed').textContent = formatBytes(totalUsed);
   $('diskTotalFree').textContent = formatBytes(totalFree);
   $('diskTotalPercent').textContent = `${totalPct.toFixed(1)}% used`;
+}
+
+/** No timers or listeners to release. */
+export function destroy() {
+  // nothing to clean up
 }

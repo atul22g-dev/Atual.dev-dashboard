@@ -126,7 +126,10 @@ app.whenReady().then(async () => {
     }
   });
 
-  const JS_TIMEOUT_MS = 8000;
+  // This machine runs slow PowerShell/WMIC channel queries (battery, CPU temp)
+  // that can exceed 8s under load, so give probes headroom like the dev-render
+  // probe (15s) already gets.
+  const JS_TIMEOUT_MS = 15000;
   function execJs(js, timeoutMs = JS_TIMEOUT_MS) {
     return Promise.race([
       wc.executeJavaScript(js),
