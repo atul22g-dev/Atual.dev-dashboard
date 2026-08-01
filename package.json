@@ -6,13 +6,12 @@
   "scripts": {
     "start": "nodemon --exec electron .",
     "dev": "nodemon --exec electron . --dev",
-    "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
     "doctor": "npx react-doctor@latest",
     "test": "node --test",
-    "script:Phase0": "node ./scripts/measure-baseline.js"
+    "script:Phase0": "node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30"
   },
   "author": "Atual.dev",
   "license": "MIT",

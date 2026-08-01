@@ -1,8 +1,10 @@
 /* ============================================================
-   🧪 Unit tests for scripts/measure-baseline.js (Phase 0 tool)
+   🧪 Unit tests for scripts/evidence.js (Phase 0 tool)
    ============================================================
-   Uses Node's built-in `node:test` runner — zero dependencies.
-   Run:  node --test test/
+   Covers the pure helpers of the combined evidence tool:
+   measure-mode parsing/math + the capture-mode Electron
+   respawn decision. Uses Node's built-in `node:test` runner —
+   zero dependencies. Run:  node --test test/
    ============================================================ */
 
 const { test, mock } = require('node:test');
@@ -14,7 +16,9 @@ const {
   round1,
   wsToMB,
   calcCpuIdlePct,
-} = require('../scripts/measure-baseline.js');
+  resolveElectronBin,
+  shouldRespawnForCapture,
+} = require('../scripts/evidence.js');
 
 // ──────────────────────────────────────────────
 // parseElectronStats
@@ -107,11 +111,43 @@ test('calcCpuIdlePct: returns null for invalid inputs (negative delta, bad elaps
 });
 
 // ──────────────────────────────────────────────
+// shouldRespawnForCapture (new — the fix for the
+// "Cannot read properties of undefined" error)
+// ──────────────────────────────────────────────
+
+test('shouldRespawnForCapture: true when not running under Electron (plain node)', () => {
+  // Plain `node scripts/evidence.js capture` — no process.versions.electron
+  assert.equal(shouldRespawnForCapture({}), true);
+  assert.equal(shouldRespawnForCapture({ node: '22.0.0' }), true);
+  assert.equal(shouldRespawnForCapture(undefined), true);
+  assert.equal(shouldRespawnForCapture(null), true);
+});
+
+test('shouldRespawnForCapture: false when running inside Electron', () => {
+  assert.equal(shouldRespawnForCapture({ electron: '43.2.0', node: '22.0.0' }), false);
+});
+
+// ──────────────────────────────────────────────
+// resolveElectronBin
+// ──────────────────────────────────────────────
+
+test('resolveElectronBin: returns the bundled Electron binary path', () => {
+  const bin = resolveElectronBin();
+  assert.equal(typeof bin, 'string');
+  assert.ok(bin.length > 0, 'path must not be empty');
+  assert.ok(bin.includes('node_modules'), 'must point into node_modules');
+  assert.ok(bin.includes('electron'), 'must reference the electron package');
+  if (process.platform === 'win32') {
+    assert.ok(bin.endsWith('.exe'), 'must end with .exe on Windows');
+  }
+});
+
+// ──────────────────────────────────────────────
 // Import-safety: requiring the module must NOT run the CLI
 // ──────────────────────────────────────────────
 
-test('module import does not start measuring (require.main guard works)', () => {
-  const modulePath = require.resolve('../scripts/measure-baseline.js');
+test('module import does not start measuring or spawn anything (require.main guard works)', () => {
+  const modulePath = require.resolve('../scripts/evidence.js');
   // Force a fresh module evaluation so the guard is exercised.
   delete require.cache[modulePath];
   // Any spawn() call on import would mean the CLI body ran — fail loudly.
@@ -119,12 +155,14 @@ test('module import does not start measuring (require.main guard works)', () => 
     throw new Error('spawn() must never be called on module import');
   });
   try {
-    const mod = require('../scripts/measure-baseline.js');
+    const mod = require('../scripts/evidence.js');
     assert.equal(spawnMock.mock.calls.length, 0, 'spawn must not be called');
     assert.equal(typeof mod.parseElectronStats, 'function');
     assert.equal(typeof mod.round1, 'function');
     assert.equal(typeof mod.wsToMB, 'function');
     assert.equal(typeof mod.calcCpuIdlePct, 'function');
+    assert.equal(typeof mod.shouldRespawnForCapture, 'function');
+    assert.equal(typeof mod.resolveElectronBin, 'function');
   } finally {
     spawnMock.mock.restore();
     delete require.cache[modulePath];
