@@ -252,3 +252,53 @@ body.theme-transition *::after {
   background: var(--gradient-accent);
   border-radius: 2px;
 }
+
+/* ── Section Error Banner (Phase 3) ── */
+/* Shown by showSectionError() when a section fails to load data.
+   No important failure should only appear in console.error. */
+.section-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: fadeSlideIn 0.25s ease;
+}
+.section-error::before {
+  content: '⚠️';
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* 🛡️ Phase 3 — global main-process crash banner (fixed, above the app) */
+.main-error-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 1000;
+  max-width: 80%;
+  padding: 10px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: var(--radius-md);
+  background: rgba(20, 8, 10, 0.92);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.main-error-banner.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

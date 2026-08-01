@@ -46,6 +46,8 @@ atual-dev-dashboard/
 │   │   ├── config.js                  # ⚙️ Window geometry, paths, safety limits
 │   │   ├── ipc.js                     # 🔌 Every ipcMain.handle/on registration
 │   │   ├── exec-async.js              # ⏱️ Promisified child_process.exec
+│   │   ├── command-service.js         # ⚙️ Centralized exec: timeout/maxBuffer/errors
+│   │   ├── logger.js                  # 📝 Local crash/error log (userData/logs)
 │   │   ├── validators.js              # 🛡️ Phase 1 input validation (pure, tested)
 │   │   └── providers/                 # 📡 System data collectors
 │   │       ├── system.js              #   CPU, memory, OS edition/version/activation, GPU
@@ -91,8 +93,9 @@ atual-dev-dashboard/
 │   ├── stability-harness.js         #   30-min stability test harness
 │   └── verify-phase1.js             #   In-app hostile-package verification
 ├── test/                            # 🧪 Unit tests (node --test)
-│   ├── validators.test.js           #   Phase 1 validators (13 tests)
-│   └── evidence.test.js             #   Phase 0 tool helpers
+│   ├── validators.test.js           #   Phase 1 validators
+│   ├── evidence.test.js             #   Phase 0 tool helpers
+│   └── command-service.test.js      #   Phase 3 command service (8 tests)
 ├── assets/
 │   └── icon.png                     # App icon
 ├── package.json
@@ -120,12 +123,17 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 ┌──────────────────────────────────────────────────────────┐
 │              🧠 MAIN PROCESS (main.js → providers/)        │
 │                                                           │
-│  • providers/* read system data via `os`, `exec`, WMI     │
+│  • providers/* read system data via `os`, WMI, and the   │
+│    command service (`command-service.js`)                │
+│  • command-service.js centralizes exec(): standardized    │
+│    timeout/maxBuffer/errors — never hangs, never rejects  │
 │  • ipc.js registers every channel (single registration    │
 │    point — no monolith)                                   │
 │  • Manages the BrowserWindow                              │
 │  • Caches expensive data to avoid repeated exec() calls   │
 │  • Runs validated, whitelisted elevated commands (UAC)    │
+│  • Crash guards: uncaughtException/unhandledRejection     │
+│    logged to userData/logs + surfaced to the renderer     │
 └────────────────────┬─────────────────────────────────────┘
                      │  IPC (ipcMain / ipcRenderer)
                      ▼
@@ -153,10 +161,16 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 
 1. **App starts** → `main.js` creates a `BrowserWindow` and loads `index.html`
 2. **Render cycle** (every 1.5s): `app.js` calls `window.electronAPI.getSystemInfo()` via IPC
-3. **Main process** — each `providers/*` module gathers data (`os.cpus()`, `os.totalmem()`, `exec()` for disk/processes, WMI/PowerShell for Windows-specific info)
+3. **Main process** — every provider shell call goes through `command-service.js` (battery, temperature, network, processes, disk, packages, system); `os`/WMI/PowerShell cover the rest
 4. **Data flows back** through the preload bridge
 5. **Renderer updates** — `app.js` calls each section's `update()` with fresh data
 6. **Charts & gauges** animate smoothly via `requestAnimationFrame`
+
+### Reliability (Phase 3)
+
+- **Centralized command execution** — every provider shell call goes through `command-service.js`, which standardizes timeout (10 s default), `maxBuffer` (1 MB), and error normalization. `runCommand()` never rejects — it resolves a predictable result object, so providers use clean `async/await` instead of nested callbacks.
+- **User-visible error states** — sections (disk, processes, network, battery, developer) show an inline ⚠️ banner when data fails to load and clear it automatically on the next successful refresh. No important failure hides in `console.error` alone.
+- **Crash guards** — `uncaughtException` / `unhandledRejection` are logged locally to `<userData>/logs/main-error.log` and pushed to the renderer via `onMainError()`, which displays a fixed banner (auto-hides after 10 s). A main-process `uncaughtException` also closes the app shortly after the banner (the process state is unknown at that point); `unhandledRejection` is recoverable and keeps running.
 
 ### Security
 
@@ -243,6 +257,7 @@ Manage globally installed npm and pip packages:
 | ✅ **CPU/GPU temperature** | Platform-specific thermal monitoring |
 | ✅ **Network speed** | Real-time download/upload rate monitoring |
 | ✅ **Secure** | `contextIsolation`, `sandbox`, no `nodeIntegration`, validated IPC inputs |
+| ✅ **Reliable** | Centralized command service (timeouts, no hangs), user-visible error banners per section, crash-guard logging + renderer alerts |
 
 ---
 
@@ -254,7 +269,7 @@ Manage globally installed npm and pip packages:
 |---------|-------------|
 | `npm start` | Launch the dashboard |
 | `npm run dev` | Launch with DevTools open |
-| `npm test` | Run unit tests (node --test, 24 tests) |
+| `npm test` | Run unit tests (node --test, 32 tests) |
 | `npm run doctor` | Run React Doctor code-quality scan |
 | `npm run script:Phase1` | In-app security verification (boots real app, hostile probes) |
 | `npm run dist:win` | Build Windows installer (NSIS) |
@@ -284,7 +299,7 @@ npx react-doctor@latest --scope changed
 npm test
 ```
 
-Runs `node --test` across `test/` (24 tests): Phase 1 input validators + Phase 0 evidence-tool helpers. Zero external test dependencies.
+Runs `node --test` across `test/` (32 tests): Phase 1 input validators, Phase 0 evidence-tool helpers, and Phase 3 command-service tests (timeout/maxBuffer normalization, fallback-chain semantics, never-hang guarantees). Zero external test dependencies.
 
 ### Project Conventions
 
@@ -306,7 +321,7 @@ The project follows a phased modernization plan:
 | `plan.md` | Master roadmap: 11 phases from baseline → stable release |
 | `plan-phase.md` | Living tracker: status, evidence, measurements, progress log |
 
-**Status:** Phases 0–2 complete (baseline evidence, security hardening, architecture split + dead-code cleanup). Phase 3 (reliability) is next. See `plan-phase.md` for the full evidence log.
+**Status:** Phases 0–3 complete (baseline evidence, security hardening, architecture split + dead-code cleanup, reliability — command service, error states, crash guards). Phase 4 (TypeScript + Vite foundation) is next. See `plan-phase.md` for the full evidence log.
 
 ---
 

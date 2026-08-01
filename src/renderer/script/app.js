@@ -125,6 +125,32 @@ window.electronAPI.onMaximize(() => updateMaximizeIcon(true));
 window.electronAPI.onUnmaximize(() => updateMaximizeIcon(false));
 
 // ──────────────────────────────────────────────
+// 🛡️ MAIN-PROCESS CRASH GUARD NOTIFICATIONS (Phase 3)
+// ──────────────────────────────────────────────
+// uncaughtException / unhandledRejection in the main process are
+// logged locally AND pushed here so the user sees them instead of
+// a silent failure. The banner auto-hides; the log keeps the full
+// stack (userData/logs/main-error.log).
+
+function showMainErrorBanner(message) {
+  let banner = document.getElementById('mainErrorBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'mainErrorBanner';
+    banner.className = 'main-error-banner';
+    document.body.appendChild(banner);
+  }
+  banner.textContent = `⚠️ Main process issue: ${message}`;
+  banner.classList.add('visible');
+  clearTimeout(banner._hideTimer);
+  banner._hideTimer = setTimeout(() => banner.classList.remove('visible'), 10000);
+}
+
+window.electronAPI.onMainError((payload) => {
+  showMainErrorBanner(payload?.message || 'Unknown main-process error');
+});
+
+// ──────────────────────────────────────────────
 // 📡 DATA UPDATER
 // ──────────────────────────────────────────────
 
@@ -240,6 +266,9 @@ function stopAutoRefresh() {
   if (processInterval) { clearInterval(processInterval); processInterval = null; }
   if (netSpeedInterval) { clearInterval(netSpeedInterval); netSpeedInterval = null; }
   window.electronAPI.removeMaximizeListeners();
+  window.electronAPI.removeMainErrorListeners();
+  const banner = document.getElementById('mainErrorBanner');
+  if (banner) { clearTimeout(banner._hideTimer); banner.remove(); }
   if (cpuLineChart) cpuLineChart.destroy();
   if (memLineChart) memLineChart.destroy();
   if (vmLineChart) vmLineChart.destroy();

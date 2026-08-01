@@ -3,7 +3,7 @@
    Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatBytes } from '../utils.js';
+import { $, formatBytes, showSectionError, clearSectionError } from '../utils.js';
 
 export let processCache = [];
 let isLoadingProcesses = false;
@@ -20,8 +20,10 @@ export async function update() {
     const procs = await window.electronAPI.getProcessList();
     processCache = procs;
     renderProcesses(procs, '');
+    clearSectionError('processes');
   } catch (err) {
     console.error('Failed to load processes:', err);
+    showSectionError('processes', 'Failed to load the process list. Retrying automatically…');
   } finally {
     isLoadingProcesses = false;
   }

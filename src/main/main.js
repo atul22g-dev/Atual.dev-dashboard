@@ -15,6 +15,11 @@
    - ipc.js       → every ipcMain.handle/on registration
    - config.js    → window geometry + paths + safety limits
    - validators.js → Phase 1 input validation (unchanged)
+
+   🛡️ Phase 3 — reliability:
+   - command-service.js → centralized exec (timeout/maxBuffer/errors)
+   - logger.js + crash guards → uncaughtException/unhandledRejection
+     are logged locally and surfaced to the renderer (never silent)
    ============================================================ */
 
 // 📦 Import required modules
@@ -22,6 +27,34 @@ const { app, BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML } = require('./config');
 const { registerIpcHandlers } = require('./ipc');
+const { logError } = require('./logger');
+
+// ──────────────────────────────────────────────
+// 🛡️ CRASH GUARDS (Phase 3)
+// ──────────────────────────────────────────────
+// Log uncaught exceptions / unhandled rejections locally and forward them
+// to the renderer so no important failure only appears in a console.
+// We never swallow silently — logError() writes to <userData>/logs.
+process.on('uncaughtException', (error) => {
+  logError('uncaughtException', error);
+  console.error('[crash-guard] uncaughtException:', error);
+  mainWindow?.webContents.send('main-error', {
+    scope: 'uncaughtException',
+    message: (error && error.message) || String(error),
+  });
+  // Node docs: after an uncaughtException the process is in an unknown state —
+  // log + notify, then exit after a short delay so the IPC message flushes.
+  setTimeout(() => app.exit(1), 500);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logError('unhandledRejection', reason);
+  console.error('[crash-guard] unhandledRejection:', reason);
+  mainWindow?.webContents.send('main-error', {
+    scope: 'unhandledRejection',
+    message: (reason && reason.message) || String(reason),
+  });
+});
 
 // ── Static analysis entry markers ──
 // The following require.resolve() calls let dead-code analysis tools (deslop)

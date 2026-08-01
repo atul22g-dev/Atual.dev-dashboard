@@ -16,7 +16,7 @@
 | 0 | Baseline & Audit | P1 | ✅ |
 | 1 | Security Hardening | P0 | ✅ |
 | 2 | Architecture (split main.js) | P0 | ✅ |
-| 3 | Reliability | P1 | ⏳ |
+| 3 | Reliability | P1 | ✅ |
 | 4 | TypeScript + Vite Foundation | P1 | ⏳ |
 | 5 | Testing & CI | P1 | ⏳ |
 | 6 | Low-End Performance | P0/P1 | ⏳ |
@@ -31,7 +31,7 @@
 
 **Goal:** Record the exact starting state before security fixes, refactoring, optimization, UI redesign, or TypeScript/Vite migration.
 
-**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict. **Phases 0–2 complete (2026-08-02)** — baseline, security hardening, and architecture (main.js split + renderer section contract) all done; Phase 3 next.
+**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict. **Phases 0–3 complete (2026-08-02)** — baseline, security hardening, architecture (main.js split + renderer section contract), and reliability (command service + error states + crash guards) all done; Phase 4 next.
 
 ---
 
@@ -691,11 +691,32 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 
 ---
 
-# ⏳ Phase 3 — Reliability (P1)
+# ✅ Phase 3 — Reliability (P1)
 
-- [ ] Standard `runCommand` wrapper kills nested callback pyramids
-- [ ] User-visible inline error states in every section
-- [ ] `process.on('uncaughtException'/'unhandledRejection')` guard + local log
+**Goal:** prevent hangs, silent failures, and fragile async behavior. Details in `plan.md` §7.
+
+**Status:** ✅ COMPLETE (2026-08-02) — centralized command service, flattened provider chains, user-visible error states in every polling section, and uncaughtException/unhandledRejection guards with a local log. Verified by 8 new command-service tests (32/32 total), `node --check`, and react-doctor.
+
+## 3.1 Completed
+
+- [x] **Command service** — `src/main/command-service.js`: `runCommand(cmd, opts)` + `runCommandUntilSuccess(cmds, opts)` centralize `timeout` (default 10 s) / `maxBuffer` (1 MB) / error normalization. `runCommand` ALWAYS resolves a `{ ok, code, stdout, stderr, message }` object — never rejects — so providers use plain async/await instead of callback pyramids. Reuses `exec-async.js` (keeps the Phase 2 module alive).
+- [x] **Flattened provider chains** — battery (3-deep Windows fallback chain), temperature (nested fallbacks), network, processes, disk, packages, and system.js now all route through the command service with async/await; `runCommandUntilSuccess` turns nested fallback chains into sequential loops. No callback pyramids remain in core providers.
+- [x] **Local logging** — `src/main/logger.js`: `logError(scope, error)` appends a timestamped entry (with stack) to `<userData>/logs/main-error.log`; never throws.
+- [x] **Crash guards** — `main.js` registers `process.on('uncaughtException')` + `process.on('unhandledRejection')`: logs locally, prints to console, and pushes a `main-error` IPC event to the renderer. `preload.js` exposes `onMainError(cb)` + `removeMainErrorListeners()`.
+- [x] **User-visible error states** — `utils.js` `showSectionError(sectionId, msg)` / `clearSectionError(sectionId)` + `.section-error` banner CSS. Wired into disk, processes, network, battery, and developer sections (banner shown on failure, cleared on success). `app.js` renders a fixed `.main-error-banner` for main-process crash-guard notifications (auto-hides after 10 s) and cleans up on teardown.
+
+## 3.2 Verification
+
+- [x] Unit tests: `npm test` → **32/32 pass** (24 prior + 8 new `test/command-service.test.js`: success/failure/unknown-command/timeout normalization, first-success + last-failure semantics, empty-list fallback)
+- [x] `node --check` clean on all modified/created main + renderer files
+- [x] `npx react-doctor@latest` → no new issues (DOM-API conventions preserved in new banner code)
+
+## 3.3 Remaining / deferred
+
+- [ ] `execFile`/`spawn` without shell where practical (Phase 1 §1.3 carry-over; shell needed for `wmic`/PowerShell pipelines today)
+- [ ] Windows WMI/`wmic` → PowerShell/CIM-first (Phase 3/8)
+- [ ] Per-section retry buttons / "Loading → Success → Error → Retry" state machine polish (Phase 5/6)
+- [ ] Global error-UI polish (toast queue, dismiss) (Phase 7)
 
 ---
 
@@ -857,6 +878,8 @@ A phase is complete only when its verification evidence exists.
 | 2026-08-02 | 2 | Renderer contract | all 8 sections expose `init()/update()/destroy()`; app.js rewritten as orchestrator (aliased imports, `constants.js` intervals, all `destroy()`s on teardown); shared `format.js` + `constants.js` extracted; developer DOM wiring + elevation-retry moved into section `init()` |
 | 2026-08-02 | 2 | Dead-code cleanup | de-exported internal-only renderer symbols (charts/disk/developer sections), removed unused imports (`$` app.js, `formatBytes` battery), trimmed `validators.js` exports, deleted dead `DonutChart` methods, removed never-rendered snapshot fields + `osInstallDate` probe from `system.js` (incl. its `fs`/WMIC/PowerShell machinery) → 24/24 tests · `node --check` clean · no dangling references |
 | 2026-08-02 | 2 | Docs sync | README.md rewritten to match Phase 2 architecture (providers/ipc/config/exec-async tree, section lifecycle contract, accurate commands incl. `npm test`/`npm run doctor`, roadmap pointers); plan.md §2.3 debt list annotated with resolved/deferred status |
+| 2026-08-02 | 3 | Command service | `src/main/command-service.js` (`runCommand`/`runCommandUntilSuccess` — standardized timeout 10 s / maxBuffer 1 MB / never-reject result objects, reuses `exec-async.js`); all 7 providers (battery/temperature/network/processes/disk/packages/system) flattened to async/await, callback pyramids eliminated |
+| 2026-08-02 | 3 | Error states + crash guards | `utils.js` `showSectionError`/`clearSectionError` + `.section-error` CSS wired into disk/processes/network/battery/developer; `logger.js` (userData/logs/main-error.log) + `uncaughtException`/`unhandledRejection` guards in main.js pushing `main-error` to renderer via `onMainError` preload bridge; fixed `.main-error-banner` in app.js → 32/32 tests (8 new command-service tests) · node --check clean · react-doctor no new issues |
 
 ---
 

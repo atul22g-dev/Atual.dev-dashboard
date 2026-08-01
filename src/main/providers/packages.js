@@ -2,14 +2,14 @@
    📦 PROVIDER — PACKAGES (Phase 2 split from main.js)
    npm/pip global package management, whitelisted elevation,
    admin checks, and registry search/autocomplete.
+   Phase 3: all shell calls go through command-service.js.
    ============================================================ */
 
 'use strict';
 
 const os = require('os');
-const { exec } = require('child_process');
-const { execAsync } = require('../exec-async');
 const https = require('https');
+const { runCommand } = require('../command-service');
 // 🛡️ Phase 1 — every renderer-supplied value passes through these validators
 // before it can reach a shell command or registry call.
 const {
@@ -30,20 +30,15 @@ async function checkAdminStatus() {
 
   if (platform === 'win32') {
     // Windows: 'net session' only works for administrators
-    try {
-      await execAsync('net session', { timeout: 3000, maxBuffer: 1024 * 1024 });
-      return { isAdmin: true, platform };
-    } catch (e) {
-      return { isAdmin: false, platform };
-    }
-  } else {
-    // macOS/Linux: check UID (0 = root)
-    try {
-      const isRoot = process.getuid && process.getuid() === 0;
-      return { isAdmin: !!isRoot, platform };
-    } catch (e) {
-      return { isAdmin: false, platform };
-    }
+    const result = await runCommand('net session', { timeout: 3000 });
+    return { isAdmin: result.ok, platform };
+  }
+  // macOS/Linux: check UID (0 = root)
+  try {
+    const isRoot = process.getuid && process.getuid() === 0;
+    return { isAdmin: !!isRoot, platform };
+  } catch (e) {
+    return { isAdmin: false, platform };
   }
 }
 
@@ -52,28 +47,21 @@ async function checkAdminStatus() {
  * npm: /usr/local/lib/node_modules (macOS/Linux) or AppData/Roaming/npm (Windows - usually no admin)
  * pip: system Python directories often need admin
  */
-function checkNpmNeedsAdmin() {
-  return new Promise((resolve) => {
-    const platform = os.platform();
-    if (platform === 'win32') {
-      // On Windows, npm global packages usually go to AppData (no admin needed)
-      exec('npm config get prefix', { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-        if (error) { resolve(true); return; } // Can't determine, assume needed
-        const prefix = stdout.trim().toLowerCase();
-        // If npm prefix is in Program Files, admin is needed
-        const needsAdmin = prefix.includes('program files') || prefix.includes('\\nodejs');
-        resolve(needsAdmin);
-      });
-    } else {
-      // macOS/Linux: default npm prefix /usr/local requires sudo
-      exec('npm config get prefix 2>/dev/null', { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-        if (error) { resolve(true); return; }
-        const prefix = stdout.trim();
-        const needsAdmin = prefix.startsWith('/usr') || prefix.startsWith('/opt');
-        resolve(needsAdmin);
-      });
-    }
-  });
+async function checkNpmNeedsAdmin() {
+  const platform = os.platform();
+  if (platform === 'win32') {
+    // On Windows, npm global packages usually go to AppData (no admin needed)
+    const result = await runCommand('npm config get prefix', { timeout: 5000 });
+    if (!result.ok) return true; // Can't determine, assume needed
+    const prefix = result.stdout.trim().toLowerCase();
+    // If npm prefix is in Program Files, admin is needed
+    return prefix.includes('program files') || prefix.includes('\\nodejs');
+  }
+  // macOS/Linux: default npm prefix /usr/local requires sudo
+  const result = await runCommand('npm config get prefix 2>/dev/null', { timeout: 5000 });
+  if (!result.ok) return true;
+  const prefix = result.stdout.trim();
+  return prefix.startsWith('/usr') || prefix.startsWith('/opt');
 }
 
 /**
@@ -85,51 +73,44 @@ function checkNpmNeedsAdmin() {
  * string; it only requests runPackageElevated(action, type, name) which
  * validates and builds the command here from the whitelist.
  */
-function runCommandElevated(cmd, args) {
-  return new Promise((resolve) => {
-    const platform = os.platform();
+async function runCommandElevated(cmd) {
+  const platform = os.platform();
 
-    if (platform === 'win32') {
-      // Windows: Use PowerShell Start-Process with -Verb RunAs for UAC elevation
-      // Wrap the command so we can capture output
-      const psScript = `powershell -NoProfile -Command "
+  if (platform === 'win32') {
+    // Windows: Use PowerShell Start-Process with -Verb RunAs for UAC elevation
+    // Wrap the command so we can capture output
+    const psScript = `powershell -NoProfile -Command "
         $proc = Start-Process -FilePath cmd.exe -ArgumentList '/c ${cmd.replace(/"/g, '\\"')}' -Verb RunAs -Wait -PassThru -WindowStyle Hidden;
         exit $proc.ExitCode
       "`;
-
-      exec(psScript, { timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) {
-          // User declined UAC or elevation failed
-          const msg = (stderr || '').includes('Access is denied')
-            ? 'Elevation cancelled or access denied'
-            : (error.message || 'Elevation failed');
-          resolve({ success: false, message: msg });
-          return;
-        }
-        resolve({ success: true, message: stdout || 'Command completed' });
-      });
-    } else if (platform === 'darwin') {
-      // macOS: Use osascript for GUI password prompt
-      const script = `osascript -e 'do shell script "${cmd.replace(/"/g, '\\"')}" with administrator privileges'`;
-      exec(script, { timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-        if (error) {
-          resolve({ success: false, message: 'Elevation cancelled or failed' });
-          return;
-        }
-        resolve({ success: true, message: stdout || 'Command completed' });
-      });
-    } else {
-      // Linux: Use pkexec (GUI password prompt) or gksudo
-      const script = `pkexec ${cmd}`;
-      exec(script, { timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) {
-          resolve({ success: false, message: 'Elevation cancelled or failed' });
-          return;
-        }
-        resolve({ success: true, message: stdout || 'Command completed' });
-      });
+    const result = await runCommand(psScript, { timeout: 120000 });
+    if (!result.ok) {
+      // User declined UAC or elevation failed
+      const msg = (result.stderr || '').includes('Access is denied')
+        ? 'Elevation cancelled or access denied'
+        : (result.message || 'Elevation failed');
+      return { success: false, message: msg };
     }
-  });
+    return { success: true, message: result.stdout || 'Command completed' };
+  }
+
+  if (platform === 'darwin') {
+    // macOS: Use osascript for GUI password prompt
+    const script = `osascript -e 'do shell script "${cmd.replace(/"/g, '\\"')}" with administrator privileges'`;
+    const result = await runCommand(script, { timeout: 120000 });
+    if (!result.ok) {
+      return { success: false, message: 'Elevation cancelled or failed' };
+    }
+    return { success: true, message: result.stdout || 'Command completed' };
+  }
+
+  // Linux: Use pkexec (GUI password prompt) or gksudo
+  const script = `pkexec ${cmd}`;
+  const result = await runCommand(script, { timeout: 120000 });
+  if (!result.ok) {
+    return { success: false, message: 'Elevation cancelled or failed' };
+  }
+  return { success: true, message: result.stdout || 'Command completed' };
 }
 
 /**
@@ -138,20 +119,20 @@ function runCommandElevated(cmd, args) {
  * Only whitelisted actions (install|update|delete) for whitelisted managers
  * (npm|pip) with a validated package name can ever be elevated.
  */
-function runPackageElevated(action, type, name) {
+async function runPackageElevated(action, type, name) {
   const actionResult = validatePackageAction(action);
   if (!actionResult.ok) {
-    return Promise.resolve({ success: false, message: actionResult.error });
+    return { success: false, message: actionResult.error };
   }
   const valid = validatePackageRequest(type, name);
   if (!valid.ok) {
-    return Promise.resolve({ success: false, message: valid.error });
+    return { success: false, message: valid.error };
   }
   const cmd = buildPackageCommand(actionResult.action, valid.type, valid.name);
   if (!cmd) {
-    return Promise.resolve({ success: false, message: 'Unknown package type' });
+    return { success: false, message: 'Unknown package type' };
   }
-  return runCommandElevated(cmd, []);
+  return runCommandElevated(cmd);
 }
 
 // ──────────────────────────────────────────────
@@ -167,21 +148,17 @@ async function getNpmPackages() {
     ? 'npm list -g --depth=0 --json'
     : 'npm list -g --depth=0 --json 2>/dev/null';
 
+  const result = await runCommand(cmd, { timeout: 10000 });
+  if (!result.ok) return [];
   try {
-    const { stdout } = await execAsync(cmd, { timeout: 10000, maxBuffer: 1024 * 1024 });
-    try {
-      const parsed = JSON.parse(stdout);
-      const deps = parsed.dependencies || {};
-      return Object.entries(deps).map(([name, info]) => ({
-        name,
-        version: info.version || '?',
-        description: info.description || '',
-      }));
-    } catch (e) {
-      return [];
-    }
+    const parsed = JSON.parse(result.stdout);
+    const deps = parsed.dependencies || {};
+    return Object.entries(deps).map(([name, info]) => ({
+      name,
+      version: info.version || '?',
+      description: info.description || '',
+    }));
   } catch (e) {
-    // npm might not be installed or another error occurred
     return [];
   }
 }
@@ -196,20 +173,17 @@ async function getPipPackages() {
     ? 'pip list --format=json 2>nul || pip3 list --format=json 2>nul'
     : 'pip3 list --format=json 2>/dev/null || pip list --format=json 2>/dev/null';
 
+  const result = await runCommand(cmd, { timeout: 10000 });
+  if (!result.ok) return [];
   try {
-    const { stdout } = await execAsync(cmd, { timeout: 10000, maxBuffer: 1024 * 1024 });
-    try {
-      const parsed = JSON.parse(stdout);
-      const packages = (parsed || []).map(pkg => ({
-        name: pkg.name,
-        version: pkg.version || '?',
-        description: '',
-      }));
-      // Fetch descriptions from PyPI JSON API in batches
-      return fetchPipDescriptions(packages);
-    } catch (e) {
-      return [];
-    }
+    const parsed = JSON.parse(result.stdout);
+    const packages = (parsed || []).map(pkg => ({
+      name: pkg.name,
+      version: pkg.version || '?',
+      description: '',
+    }));
+    // Fetch descriptions from PyPI JSON API in batches
+    return fetchPipDescriptions(packages);
   } catch (e) {
     return [];
   }
@@ -242,83 +216,74 @@ function buildPackageCommand(action, type, name) {
   return null;
 }
 
+/** Extract the last N non-empty output lines for a user-facing message. */
+function tailLines(stdout, stderr, count) {
+  const source = (stderr || stdout || '').trim();
+  return source.split('\n').filter(l => l.trim()).slice(-count).join('\n');
+}
+
 /**
  * ⬆️ Update a global package (npm or pip)
  * Works for both npm and Python packages
  */
-function updatePackage(type, name) {
+async function updatePackage(type, name) {
   // 🛡️ Phase 1 — validate BEFORE building any shell command
   const valid = validatePackageRequest(type, name);
   if (!valid.ok) {
-    return Promise.resolve({ success: false, message: valid.error });
+    return { success: false, message: valid.error };
   }
   const base = buildPackageCommand('update', valid.type, valid.name);
   if (!base) {
-    return Promise.resolve({ success: false, message: 'Unknown package type' });
+    return { success: false, message: 'Unknown package type' };
   }
-  const cmd = `${base} 2>&1`;
-  return new Promise((resolve) => {
-    exec(cmd, { timeout: 60000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
-        resolve({ success: false, message: errorOutput || error.message || 'Update failed' });
-        return;
-      }
-      resolve({ success: true, message: stdout.split('\n').filter(l => l.trim()).slice(-3).join('\n') });
-    });
-  });
+  const result = await runCommand(`${base} 2>&1`, { timeout: 60000 });
+  if (!result.ok) {
+    const errorOutput = tailLines(result.stderr, result.stdout, 5);
+    return { success: false, message: errorOutput || result.message || 'Update failed' };
+  }
+  return { success: true, message: tailLines(result.stdout, '', 3) };
 }
 
 /**
  * 📥 Install a new global package (npm or pip)
  */
-function installPackage(type, name) {
+async function installPackage(type, name) {
   // 🛡️ Phase 1 — validate BEFORE building any shell command
   const valid = validatePackageRequest(type, name);
   if (!valid.ok) {
-    return Promise.resolve({ success: false, message: valid.error });
+    return { success: false, message: valid.error };
   }
   const base = buildPackageCommand('install', valid.type, valid.name);
   if (!base) {
-    return Promise.resolve({ success: false, message: 'Unknown package type' });
+    return { success: false, message: 'Unknown package type' };
   }
-  const cmd = `${base} 2>&1`;
-  return new Promise((resolve) => {
-    exec(cmd, { timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
-        resolve({ success: false, message: errorOutput || error.message || 'Installation failed' });
-        return;
-      }
-      resolve({ success: true, message: stdout.split('\n').filter(l => l.trim()).slice(-3).join('\n') });
-    });
-  });
+  const result = await runCommand(`${base} 2>&1`, { timeout: 120000 });
+  if (!result.ok) {
+    const errorOutput = tailLines(result.stderr, result.stdout, 5);
+    return { success: false, message: errorOutput || result.message || 'Installation failed' };
+  }
+  return { success: true, message: tailLines(result.stdout, '', 3) };
 }
 
 /**
  * 🗑️ Delete (uninstall) a global package
  */
-function deletePackage(type, name) {
+async function deletePackage(type, name) {
   // 🛡️ Phase 1 — validate BEFORE building any shell command
   const valid = validatePackageRequest(type, name);
   if (!valid.ok) {
-    return Promise.resolve({ success: false, message: valid.error });
+    return { success: false, message: valid.error };
   }
   const base = buildPackageCommand('delete', valid.type, valid.name);
   if (!base) {
-    return Promise.resolve({ success: false, message: 'Unknown package type' });
+    return { success: false, message: 'Unknown package type' };
   }
-  const cmd = `${base} 2>&1`;
-  return new Promise((resolve) => {
-    exec(cmd, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
-        resolve({ success: false, message: errorOutput || error.message || 'Uninstall failed' });
-        return;
-      }
-      resolve({ success: true, message: stdout.split('\n').filter(l => l.trim()).slice(-3).join('\n') });
-    });
-  });
+  const result = await runCommand(`${base} 2>&1`, { timeout: 30000 });
+  if (!result.ok) {
+    const errorOutput = tailLines(result.stderr, result.stdout, 5);
+    return { success: false, message: errorOutput || result.message || 'Uninstall failed' };
+  }
+  return { success: true, message: tailLines(result.stdout, '', 3) };
 }
 
 // ──────────────────────────────────────────────
@@ -390,37 +355,32 @@ async function fetchPipDescriptions(packages) {
  * Search pip registry for packages matching a query
  * Uses pip index command (newer pip) or pip search (older pip)
  */
-function searchPipRegistry(query) {
-  return new Promise((resolve) => {
-    // 🛡️ Phase 1 — validate the renderer-supplied query before any shell command
-    const valid = validateSearchQuery(query);
-    if (!valid.ok) { resolve([]); return; }
-    const escaped = valid.query;
+async function searchPipRegistry(query) {
+  // 🛡️ Phase 1 — validate the renderer-supplied query before any shell command
+  const valid = validateSearchQuery(query);
+  if (!valid.ok) return [];
+  const escaped = valid.query;
 
-    // Try pip index versions first (newer pip)
-    const pipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
-    exec(`${pipCmd} index versions "${escaped}" 2>nul`, { timeout: 8000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
-      if (!err && stdout && stdout.trim()) {
-        const lines = stdout.trim().split('\n').filter(l => l.trim());
-        if (lines.length > 0) {
-          const versionMatch = lines[0].match(/available versions: (.+)/i);
-          const versions = versionMatch ? versionMatch[1].split(',') : [];
-          const pkgNameMatch = lines[0].match(/^(.+?)\(/);
-          const name = pkgNameMatch ? pkgNameMatch[1].trim() : escaped;
-          // Fetch description from PyPI API
-          fetchPipDescription(name).then(desc => {
-            resolve([{
-              name,
-              version: versions[0]?.trim() || '',
-              description: desc.substring(0, 120),
-            }]);
-          });
-          return;
-        }
-      }
-      resolve([]);
-    });
-  });
+  // Try pip index versions first (newer pip)
+  const pipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
+  const result = await runCommand(`${pipCmd} index versions "${escaped}" 2>nul`, { timeout: 8000 });
+  if (result.ok && result.stdout && result.stdout.trim()) {
+    const lines = result.stdout.trim().split('\n').filter(l => l.trim());
+    if (lines.length > 0) {
+      const versionMatch = lines[0].match(/available versions: (.+)/i);
+      const versions = versionMatch ? versionMatch[1].split(',') : [];
+      const pkgNameMatch = lines[0].match(/^(.+?)\(/);
+      const name = pkgNameMatch ? pkgNameMatch[1].trim() : escaped;
+      // Fetch description from PyPI API
+      const desc = await fetchPipDescription(name);
+      return [{
+        name,
+        version: versions[0]?.trim() || '',
+        description: desc.substring(0, 120),
+      }];
+    }
+  }
+  return [];
 }
 
 // Only the surface consumed by ipc.js (and cross-provider callers) is exported;

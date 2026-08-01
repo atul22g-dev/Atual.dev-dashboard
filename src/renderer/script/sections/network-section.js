@@ -3,7 +3,7 @@
    Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatBytes, formatPlatform } from '../utils.js';
+import { $, formatBytes, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
 import { formatSpeed } from '../format.js';
 
 let _netMaxSpeed = 1024 * 1024;
@@ -87,8 +87,10 @@ export async function loadNetworkSpeed() {
     const data = await window.electronAPI.getNetworkSpeed();
     if (!data) return;
     renderNetworkSpeed(data);
+    clearSectionError('network');
   } catch (err) {
     console.error('Failed to load network speed:', err);
+    showSectionError('network', 'Failed to read network speeds. Retrying automatically…');
   }
 }
 

@@ -86,9 +86,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMaximize: (callback) => ipcRenderer.on('window-maximized', () => callback()),
   onUnmaximize: (callback) => ipcRenderer.on('window-unmaximized', () => callback()),
   
+  // Phase 3 — main-process crash guard notifications (uncaughtException /
+  // unhandledRejection). The renderer can surface these to the user instead
+  // of letting a main-process failure pass silently.
+  onMainError: (callback) => ipcRenderer.on('main-error', (_event, payload) => callback(payload)),
+  
   // Clean up event listeners (prevent memory leaks)
   removeMaximizeListeners: () => {
     ipcRenderer.removeAllListeners('window-maximized');
     ipcRenderer.removeAllListeners('window-unmaximized');
+  },
+  removeMainErrorListeners: () => {
+    ipcRenderer.removeAllListeners('main-error');
   },
 });

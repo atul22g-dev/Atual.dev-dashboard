@@ -7,8 +7,8 @@
 'use strict';
 
 const os = require('os');
-const { exec } = require('child_process');
 const { app } = require('electron');
+const { runCommand } = require('../command-service');
 const { getDiskInfo } = require('./disk');
 
 // ──────────────────────────────────────────────
@@ -171,9 +171,9 @@ function getUsableMemory() {
   // Fetch TotalVisibleMemorySize from WMI (KB → bytes)
   const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os){echo $os.TotalVisibleMemorySize}else{echo 0}}" 2>nul';
 
-  exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
-    if (!err && out) {
-      const kb = parseInt(out.trim().split(/[\r\n]+/)[0]?.trim());
+  runCommand(psCmd, { timeout: 5000 }).then(result => {
+    if (result.ok && result.stdout) {
+      const kb = parseInt(result.stdout.trim().split(/[\r\n]+/)[0]?.trim());
       if (kb && kb > 0) {
         _cachedUsableMemory = kb * 1024; // KB → bytes (overwrites estimate)
       }
@@ -210,28 +210,29 @@ function getOsDisplayVersion() {
   // Method 1: reg query (most reliable, no PowerShell quoting issues)
   // Output format: "    DisplayVersion    REG_SZ    24H2"
   const regCmd = 'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v DisplayVersion 2>nul';
-  exec(regCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
-    if (!err && out) {
-      const match = out.match(/DisplayVersion\s+REG_\w+\s+(\S+)/i);
+  const psCmd = 'powershell -NoProfile -Command "try{$v=(Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name DisplayVersion -ErrorAction Stop).DisplayVersion;if($v){echo $v}else{echo (Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name ReleaseId -ErrorAction SilentlyContinue).ReleaseId}}catch{echo \'\'}" 2>nul';
+
+  (async () => {
+    const regResult = await runCommand(regCmd, { timeout: 5000 });
+    if (regResult.ok && regResult.stdout) {
+      const match = regResult.stdout.match(/DisplayVersion\s+REG_\w+\s+(\S+)/i);
       if (match && match[1]) {
         _cachedOsDisplayVersion = match[1].trim();
         return;
       }
     }
     // Method 2: PowerShell (fallback)
-    const psCmd = 'powershell -NoProfile -Command "try{$v=(Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name DisplayVersion -ErrorAction Stop).DisplayVersion;if($v){echo $v}else{echo (Get-ItemProperty \'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\' -Name ReleaseId -ErrorAction SilentlyContinue).ReleaseId}}catch{echo \'\'}" 2>nul';
-    exec(psCmd, { timeout: 4000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
-      if (!psErr && psOut) {
-        const v = psOut.trim().split(/[\r\n]+/)[0]?.trim();
-        if (v) {
-          _cachedOsDisplayVersion = v;
-          return;
-        }
+    const psResult = await runCommand(psCmd, { timeout: 4000 });
+    if (psResult.ok && psResult.stdout) {
+      const v = psResult.stdout.trim().split(/[\r\n]+/)[0]?.trim();
+      if (v) {
+        _cachedOsDisplayVersion = v;
+        return;
       }
-      // Final fallback: use os.release()
-      _cachedOsDisplayVersion = os.release();
-    });
-  });
+    }
+    // Final fallback: use os.release()
+    _cachedOsDisplayVersion = os.release();
+  })();
 
   return _cachedOsDisplayVersion;
 }
@@ -250,29 +251,30 @@ function getOsEdition() {
     _cachedOsEdition = result;
     // Try WMIC first (simpler, fewer quoting issues)
     const wmicCmd = 'wmic os get Caption /value 2>nul';
-    exec(wmicCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
-      if (!err && out) {
-        const match = out.match(/^Caption=(.+)$/im);
+    // Fallback: try PowerShell Get-CimInstance
+    const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os){echo ($os.Caption + [char]124 + $os.Version)}else{echo Unknown}}" 2>nul';
+
+    (async () => {
+      const wmicResult = await runCommand(wmicCmd, { timeout: 5000 });
+      if (wmicResult.ok && wmicResult.stdout) {
+        const match = wmicResult.stdout.match(/^Caption=(.+)$/im);
         if (match && match[1]) {
           _cachedOsEdition = match[1].trim();
           return;
         }
       }
-      // Fallback: try PowerShell Get-CimInstance
-      const psCmd = 'powershell -NoProfile -Command "&{$os=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($os){echo ($os.Caption + [char]124 + $os.Version)}else{echo Unknown}}" 2>nul';
-      exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
-        if (!psErr && psOut) {
-          const line = psOut.trim().split(/[\r\n]+/)[0]?.trim();
-          if (line && line !== 'Unknown') {
-            const parts = line.split('|');
-            _cachedOsEdition = parts[0]?.trim() || ('Windows ' + os.release());
-            return;
-          }
+      const psResult = await runCommand(psCmd, { timeout: 5000 });
+      if (psResult.ok && psResult.stdout) {
+        const line = psResult.stdout.trim().split(/[\r\n]+/)[0]?.trim();
+        if (line && line !== 'Unknown') {
+          const parts = line.split('|');
+          _cachedOsEdition = parts[0]?.trim() || ('Windows ' + os.release());
+          return;
         }
-        // Final fallback
-        _cachedOsEdition = 'Windows ' + os.release();
-      });
-    });
+      }
+      // Final fallback
+      _cachedOsEdition = 'Windows ' + os.release();
+    })();
     return _cachedOsEdition;
   } else if (platform === 'darwin') {
     _cachedOsEdition = 'macOS ' + os.release();
@@ -297,8 +299,13 @@ function getOsActivationStatus() {
   // Method 1: Try cscript + slmgr.vbs (very reliable on all Windows, though slightly slow)
   // slmgr /dli outputs licensing info; we check for 'Licensed' status
   const slmgrCmd = 'cscript //nologo "%windir%\\system32\\slmgr.vbs" /dli 2>nul';
-  exec(slmgrCmd, { timeout: 10000, maxBuffer: 1024 * 1024 }, (err, out) => {
-    if (!err && out) {
+  // Method 2: PowerShell SoftwareLicensingProduct (fallback)
+  const psCmd = 'powershell -NoProfile -Command "$p=Get-CimInstance SoftwareLicensingProduct -ErrorAction SilentlyContinue | Where-Object { $_.ApplicationID -eq \'55c92734-d682-4d71-983e-d6ec3f16059f\' } | Sort-Object { [bool]$_.PartialProductKey } -Descending | Select -First 1; if($p){ @(\'Unlicensed\',\'Activated\',\'OOB Grace\',\'OOT Grace\',\'NonGenuine Grace\',\'Notification\',\'Extended Grace\')[$p.LicenseStatus] } else { echo \'Unlicensed\' }" 2>nul';
+
+  (async () => {
+    const slmgrResult = await runCommand(slmgrCmd, { timeout: 10000 });
+    if (slmgrResult.ok && slmgrResult.stdout) {
+      const out = slmgrResult.stdout;
       if (/License Status:\s*Licensed/i.test(out)) {
         _cachedOsActivation = 'Activated';
         return;
@@ -318,20 +325,17 @@ function getOsActivationStatus() {
       }
     }
 
-    // Method 2: PowerShell SoftwareLicensingProduct (fallback)
-    const psCmd = 'powershell -NoProfile -Command "$p=Get-CimInstance SoftwareLicensingProduct -ErrorAction SilentlyContinue | Where-Object { $_.ApplicationID -eq \'55c92734-d682-4d71-983e-d6ec3f16059f\' } | Sort-Object { [bool]$_.PartialProductKey } -Descending | Select -First 1; if($p){ @(\'Unlicensed\',\'Activated\',\'OOB Grace\',\'OOT Grace\',\'NonGenuine Grace\',\'Notification\',\'Extended Grace\')[$p.LicenseStatus] } else { echo \'Unlicensed\' }" 2>nul';
-    exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (psErr, psOut) => {
-      if (!psErr && psOut) {
-        const v = psOut.trim().split(/[\r\n]+/)[0]?.trim();
-        if (v) {
-          _cachedOsActivation = v;
-          return;
-        }
+    const psResult = await runCommand(psCmd, { timeout: 5000 });
+    if (psResult.ok && psResult.stdout) {
+      const v = psResult.stdout.trim().split(/[\r\n]+/)[0]?.trim();
+      if (v) {
+        _cachedOsActivation = v;
+        return;
       }
-      // Final fallback
-      _cachedOsActivation = 'Unknown';
-    });
-  });
+    }
+    // Final fallback
+    _cachedOsActivation = 'Unknown';
+  })();
 
   return result;
 }
@@ -393,9 +397,9 @@ function fetchGpuViaWmi() {
   if (os.platform() !== 'win32') return;
   _wmiGpuFetched = true;
   const psCmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne $null } | ForEach-Object { $_.Name + \'|\' + [math]::Max($_.AdapterRAM, 0).ToString() }" 2>nul';
-  exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
-    if (!err && out && out.trim()) {
-      const lines = out.trim().split('\n').filter(l => l.trim());
+  runCommand(psCmd, { timeout: 5000 }).then(result => {
+    if (result.ok && result.stdout && result.stdout.trim()) {
+      const lines = result.stdout.trim().split('\n').filter(l => l.trim());
       if (lines.length > 0) {
         const gpuList = lines.flatMap(line => {
           const parts = line.split('|');
@@ -459,83 +463,79 @@ function getStorageSummary() {
  * Get virtual memory (swap/page file) usage
  * Returns { total, used, free } in bytes, or null if unavailable
  */
-function getVirtualMemory() {
-  return new Promise((resolve) => {
-    const platform = os.platform();
+async function getVirtualMemory() {
+  const platform = os.platform();
 
-    if (platform === 'win32') {
-      // Windows: Get TotalVirtualMemorySize & FreeVirtualMemory from WMI
-      // TotalVirtualMemorySize = physical RAM + page file total (in KB)
-      const psCmd = 'powershell -NoProfile -Command "&{$vm=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($vm){echo ($vm.TotalVirtualMemorySize.ToString() + [char]44 + $vm.FreeVirtualMemory.ToString())}else{echo 0,0}}" 2>nul';
-      exec(psCmd, { timeout: 5000, maxBuffer: 1024 * 1024 }, (err, out) => {
-        if (!err && out) {
-          const output = out.trim().split(/[\r\n]+/)[0]?.trim();
-          if (output && !output.includes('0,0')) {
-            const parts = output.split(',');
-            const totalKB = parseInt(parts[0]);
-            const freeKB = parseInt(parts[1]);
-            if (totalKB && totalKB > 0) {
-              const total = totalKB * 1024;
-              const free = freeKB * 1024;
-              const used = total - free;
-              resolve({ total, used, free });
-              return;
-            }
-          }
+  if (platform === 'win32') {
+    // Windows: Get TotalVirtualMemorySize & FreeVirtualMemory from WMI
+    // TotalVirtualMemorySize = physical RAM + page file total (in KB)
+    const psCmd = 'powershell -NoProfile -Command "&{$vm=Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue;if($vm){echo ($vm.TotalVirtualMemorySize.ToString() + [char]44 + $vm.FreeVirtualMemory.ToString())}else{echo 0,0}}" 2>nul';
+    const result = await runCommand(psCmd, { timeout: 5000 });
+    if (result.ok && result.stdout) {
+      const output = result.stdout.trim().split(/[\r\n]+/)[0]?.trim();
+      if (output && !output.includes('0,0')) {
+        const parts = output.split(',');
+        const totalKB = parseInt(parts[0]);
+        const freeKB = parseInt(parts[1]);
+        if (totalKB && totalKB > 0) {
+          const total = totalKB * 1024;
+          const free = freeKB * 1024;
+          const used = total - free;
+          return { total, used, free };
         }
-        resolve(null);
-      });
-    } else if (platform === 'linux') {
-      // Linux: Read swap from /proc/meminfo
-      exec('grep -E "^(SwapTotal|SwapFree):" /proc/meminfo 2>/dev/null', { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, out) => {
-        if (!err && out) {
-          const totalMatch = out.match(/SwapTotal:\s+(\d+)\s+kB/i);
-          const freeMatch = out.match(/SwapFree:\s+(\d+)\s+kB/i);
-          if (totalMatch && freeMatch) {
-            const totalKB = parseInt(totalMatch[1]);
-            const freeKB = parseInt(freeMatch[1]);
-            if (totalKB > 0) {
-              const total = totalKB * 1024;
-              const free = freeKB * 1024;
-              const used = total - free;
-              resolve({ total, used, free });
-              return;
-            }
-          }
-        }
-        resolve(null);
-      });
-    } else if (platform === 'darwin') {
-      // macOS: Get swap usage from sysctl
-      exec('sysctl vm.swapusage 2>/dev/null', { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, out) => {
-        if (!err && out) {
-          const totalMatch = out.match(/total\s*=\s*([\d.]+)\s*([KMGT]?)/i);
-          const usedMatch = out.match(/used\s*=\s*([\d.]+)\s*([KMGT]?)/i);
-          if (totalMatch && usedMatch) {
-            const parseSize = (val, unit) => {
-              const num = parseFloat(val);
-              const u = (unit || 'K').toUpperCase();
-              if (u === 'K') return num * 1024;
-              if (u === 'M') return num * 1024 * 1024;
-              if (u === 'G') return num * 1024 * 1024 * 1024;
-              if (u === 'T') return num * 1024 * 1024 * 1024 * 1024;
-              return num;
-            };
-            const total = parseSize(totalMatch[1], totalMatch[2]);
-            const used = parseSize(usedMatch[1], usedMatch[2]);
-            const free = total - used;
-            if (total > 0) {
-              resolve({ total, used, free });
-              return;
-            }
-          }
-        }
-        resolve(null);
-      });
-    } else {
-      resolve(null);
+      }
     }
-  });
+    return null;
+  }
+
+  if (platform === 'linux') {
+    // Linux: Read swap from /proc/meminfo
+    const result = await runCommand('grep -E "^(SwapTotal|SwapFree):" /proc/meminfo 2>/dev/null', { timeout: 3000 });
+    if (result.ok && result.stdout) {
+      const totalMatch = result.stdout.match(/SwapTotal:\s+(\d+)\s+kB/i);
+      const freeMatch = result.stdout.match(/SwapFree:\s+(\d+)\s+kB/i);
+      if (totalMatch && freeMatch) {
+        const totalKB = parseInt(totalMatch[1]);
+        const freeKB = parseInt(freeMatch[1]);
+        if (totalKB > 0) {
+          const total = totalKB * 1024;
+          const free = freeKB * 1024;
+          const used = total - free;
+          return { total, used, free };
+        }
+      }
+    }
+    return null;
+  }
+
+  if (platform === 'darwin') {
+    // macOS: Get swap usage from sysctl
+    const result = await runCommand('sysctl vm.swapusage 2>/dev/null', { timeout: 3000 });
+    if (result.ok && result.stdout) {
+      const totalMatch = result.stdout.match(/total\s*=\s*([\d.]+)\s*([KMGT]?)/i);
+      const usedMatch = result.stdout.match(/used\s*=\s*([\d.]+)\s*([KMGT]?)/i);
+      if (totalMatch && usedMatch) {
+        const parseSize = (val, unit) => {
+          const num = parseFloat(val);
+          const u = (unit || 'K').toUpperCase();
+          if (u === 'K') return num * 1024;
+          if (u === 'M') return num * 1024 * 1024;
+          if (u === 'G') return num * 1024 * 1024 * 1024;
+          if (u === 'T') return num * 1024 * 1024 * 1024 * 1024;
+          return num;
+        };
+        const total = parseSize(totalMatch[1], totalMatch[2]);
+        const used = parseSize(usedMatch[1], usedMatch[2]);
+        const free = total - used;
+        if (total > 0) {
+          return { total, used, free };
+        }
+      }
+    }
+    return null;
+  }
+
+  return null;
 }
 
 // Only the surface consumed by ipc.js is exported; the rest (calculateCpuUsage,

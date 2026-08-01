@@ -55,3 +55,29 @@ export function toggleMetricClass(className, condition, element) {
   if (!element) return;
   element.classList.toggle(className, !!condition);
 }
+
+/**
+ * Show a user-visible error banner at the top of a dashboard section.
+ * (Phase 3 — no important failure should only appear in console.error.)
+ * @param {string} sectionId e.g. 'disk', 'network', 'processes', 'battery'
+ * @param {string} message human-readable failure text
+ */
+export function showSectionError(sectionId, message) {
+  const section = document.getElementById(`section-${sectionId}`);
+  if (!section) return;
+  let banner = section.querySelector('.section-error');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'section-error';
+    section.prepend(banner);
+  }
+  banner.textContent = message;
+  banner.style.display = 'flex';
+}
+
+/** Hide the section error banner (called on a successful refresh). */
+export function clearSectionError(sectionId) {
+  const section = document.getElementById(`section-${sectionId}`);
+  const banner = section?.querySelector('.section-error');
+  if (banner) banner.style.display = 'none';
+}

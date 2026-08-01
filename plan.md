@@ -106,13 +106,13 @@ The application should look and feel modern while keeping CPU, RAM, disk, and GP
 
 ## 2.3 Known Technical Debt
 
-Status as of **2026-08-02** (Phases 0–2 complete): ✅ resolved · 🔄 in progress · ⏳ deferred.
+Status as of **2026-08-02** (Phases 0–3 complete): ✅ resolved · 🔄 in progress · ⏳ deferred.
 
 - ✅ ~~`main.js` is a large monolithic file.~~ → split in Phase 2 (`main.js` entry + `providers/*` + `ipc.js` + `config.js` + `exec-async.js`)
 - ✅ ~~Registry/package information must be safely escaped before entering HTML.~~ → Phase 1 (DOM-API rewriting, no unescaped dynamic HTML)
 - ✅ ~~Renderer-provided values must never become arbitrary shell commands.~~ → Phase 1 (validated `validators.js`, whitelisted elevation)
-- 🔄 Several command executions require consistent timeout and buffer handling. → all ~49 `exec()` sites have `timeout` + `maxBuffer` (Phase 1); centralized command service is Phase 3
-- ⏳ There are nested callback chains that should become async/await. → `exec-async.js` exists (Phase 2); full flattening is Phase 3
+- ✅ ~~Several command executions require consistent timeout and buffer handling.~~ → Phase 1 set timeout+maxBuffer everywhere; Phase 3 centralized them in `command-service.js` (`runCommand`/`runCommandUntilSuccess`, default 10 s / 1 MB, never-reject result objects)
+- ✅ ~~There are nested callback chains that should become async/await.~~ → Phase 3 flattened all provider chains (battery/temperature/network/processes/disk/packages/system) onto the command service
 - ⏳ Canvas rendering needs proper HiDPI support. → Phase 6
 - ⏳ Refresh intervals are hardcoded and not adaptive. → centralized in `constants.js` (Phase 2); smart/adaptive polling is Phase 6
 - ⏳ Hidden sections can perform unnecessary work. → Phase 6 (visibility-based work)
@@ -440,6 +440,8 @@ Move reusable logic into these modules.
 **Priority:** P1  
 **Goal:** Prevent hangs, silent failures, and fragile asynchronous behavior.
 
+**Status: ✅ COMPLETE** (2026-08-02) — centralized command service (`src/main/command-service.js`), flattened provider callback chains, user-visible error banners in every polling section, and uncaughtException/unhandledRejection crash guards with local logging. See `plan-phase.md` §3 for evidence.
+
 ## Command service
 
 Create a centralized command runner:
@@ -459,18 +461,18 @@ interface CommandResult {
 
 ## Tasks
 
-- [ ] Replace nested callbacks with async/await.
-- [ ] Centralize command execution.
-- [ ] Standardize errors.
-- [ ] Standardize timeout behavior.
-- [ ] Standardize `maxBuffer`.
-- [ ] Flatten battery fallback chains.
-- [ ] Flatten temperature fallback chains.
-- [ ] Add safe provider fallbacks.
-- [ ] Handle missing hardware.
-- [ ] Handle permission failures.
-- [ ] Handle missing commands.
-- [ ] Add local logging.
+- [x] Replace nested callbacks with async/await.
+- [x] Centralize command execution.
+- [x] Standardize errors.
+- [x] Standardize timeout behavior.
+- [x] Standardize `maxBuffer`.
+- [x] Flatten battery fallback chains.
+- [x] Flatten temperature fallback chains.
+- [x] Add safe provider fallbacks.
+- [x] Handle missing hardware.
+- [x] Handle permission failures.
+- [x] Handle missing commands.
+- [x] Add local logging.
 
 ## UI error states
 
@@ -501,10 +503,10 @@ Do not hide errors silently. Log them locally and present safe user-facing state
 
 ### Exit criteria
 
-- [ ] No callback pyramids in core providers.
-- [ ] All provider failures are handled.
-- [ ] No section silently fails.
-- [ ] Long-running commands cannot hang indefinitely.
+- [x] No callback pyramids in core providers.
+- [x] All provider failures are handled.
+- [x] No section silently fails.
+- [x] Long-running commands cannot hang indefinitely.
 
 ---
 

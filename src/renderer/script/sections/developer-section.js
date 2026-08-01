@@ -2,7 +2,7 @@
    📦 DEVELOPER SECTION - Package Manager (npm/pip)
    ============================================================ */
 
-import { $ } from '../utils.js';
+import { $, showSectionError, clearSectionError } from '../utils.js';
 import { isPermissionError } from '../format.js';
 
 /**
@@ -60,10 +60,12 @@ async function loadPackages() {
       pipPackages = packages;
     }
     renderPackages(packages, '');
+    clearSectionError('developer');
   } catch (err) {
     console.error('Failed to load packages:', err);
     const body = document.getElementById('pkgListBody');
     if (body) body.innerHTML = '<div class="pkg-loading">Failed to load packages. Make sure npm/pip is installed.</div>';
+    showSectionError('developer', 'Failed to load the package list. Make sure npm/pip is installed and reachable.');
   } finally {
     isLoadingPackages = false;
   }

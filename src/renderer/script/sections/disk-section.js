@@ -3,7 +3,7 @@
    Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatBytes } from '../utils.js';
+import { $, formatBytes, showSectionError, clearSectionError } from '../utils.js';
 
 let diskInfoCache = [];
 
@@ -17,8 +17,10 @@ export async function update() {
     const disks = await window.electronAPI.getDiskInfo();
     diskInfoCache = disks;
     renderDiskInfo(disks);
+    clearSectionError('disk');
   } catch (err) {
     console.error('Failed to load disk info:', err);
+    showSectionError('disk', 'Failed to load disk information. Retrying automatically…');
   }
 }
 

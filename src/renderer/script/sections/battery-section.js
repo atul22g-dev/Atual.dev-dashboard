@@ -3,11 +3,12 @@
    Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatUptime, formatPlatform } from '../utils.js';
+import { $, formatUptime, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
 import { RingGauge } from '../gauges.js';
 
 let batteryGauge = null;
 let _batteryDetails = null;
+let _batteryDetailsFailed = false;
 const _batteryLevelHistory = [];
 
 function setBatteryField(id, value, alwaysShow = false) {
@@ -49,8 +50,12 @@ async function loadBatteryDetails() {
   try {
     const details = await window.electronAPI.getBatteryDetails();
     _batteryDetails = details;
+    _batteryDetailsFailed = false;
+    clearSectionError('battery');
   } catch (err) {
     console.error('Failed to load battery details:', err);
+    _batteryDetailsFailed = true;
+    showSectionError('battery', 'Battery details unavailable (design capacity, cycle count, runtime).');
   }
 }
 
@@ -154,8 +159,12 @@ export async function update(info) {
     setBatteryField('batteryOS', `${info.osType} ${info.osRelease}`, true);
     setBatteryField('batteryArch', info.arch, true);
     hideEmptyBatteryCards();
+    // Only clear the banner when the detailed specs are available too —
+    // otherwise a details failure would be silently wiped on the next refresh.
+    if (!_batteryDetailsFailed) clearSectionError('battery');
   } catch (err) {
     console.error('Battery info error:', err);
+    showSectionError('battery', 'Failed to read battery status. Retrying automatically…');
   }
 }
 
@@ -166,5 +175,6 @@ export function destroy() {
     batteryGauge = null;
   }
   _batteryDetails = null;
+  _batteryDetailsFailed = false;
   _batteryLevelHistory.length = 0;
 }
