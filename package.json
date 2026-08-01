@@ -4,12 +4,15 @@
   "description": "A modern desktop system monitoring dashboard built with Electron.",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron . --dev ",
+    "start": "nodemon --exec electron .",
     "dev": "nodemon --exec electron . --dev",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "doctor": "npx react-doctor@latest",
+    "test": "node --test",
+    "script:Phase0": "node ./scripts/measure-baseline.js"
   },
   "author": "Atual.dev",
   "license": "MIT",
