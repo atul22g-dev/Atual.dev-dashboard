@@ -24,6 +24,7 @@
 
 // 📦 Import required modules
 const { app, BrowserWindow, nativeImage } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML } = require('./config');
 const { registerIpcHandlers } = require('./ipc');
@@ -95,7 +96,14 @@ function createWindow() {
     },
   });
 
-  // 📄 Load the dashboard HTML file
+  // 📄 Load the dashboard HTML file (Phase 4: Vite-built bundle)
+  if (!fs.existsSync(RENDERER_HTML)) {
+    // Loud, actionable failure instead of a blank/broken window: the renderer
+    // is TypeScript-compiled now, so the source HTML cannot run standalone.
+    console.error('[main] Renderer build not found at:', RENDERER_HTML);
+    console.error('[main] Run `npm run build` (Vite) before starting the app.');
+    logError('missing-renderer-build', `Run 'npm run build' — expected ${RENDERER_HTML}`);
+  }
   mainWindow.loadFile(RENDERER_HTML);
 
   // 🔧 Open DevTools when running with --dev flag

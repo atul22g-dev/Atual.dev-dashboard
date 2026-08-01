@@ -175,9 +175,11 @@ app.whenReady().then(async () => {
       const nav = document.querySelector('.nav-item[data-section="developer"]');
       if (!nav) return JSON.stringify({ ok: false, reason: 'developer nav missing' });
       nav.click();
-      // Poll until package rows render (packages load via IPC; can take seconds)
+      // Poll until package rows render (packages load via IPC; can take seconds
+      // on slow machines — npm list under load exceeded the old 10s window,
+      // causing false negatives on this machine, so allow up to 20s).
       let rows = 0;
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 40; i++) {
         await new Promise(r => setTimeout(r, 500));
         rows = document.querySelectorAll('.pkg-row').length;
         if (rows > 0) break;
@@ -211,7 +213,7 @@ app.whenReady().then(async () => {
         popupName: popupName !== null ? String(popupName).slice(0, 40) : null,
         badge: badge !== null ? String(badge).slice(0, 12) : null, detailItems, closeBtn,
       });
-    })()`, 15000); // dev render can take ~10s on slow package loads; give it headroom
+    })()`, 30000); // dev render can take ~20s on slow package loads; give it headroom
     report.ui.devRender = devRender;
 
     // ── 4) UI install path probe (hostile name → rejection status, no exec) ──

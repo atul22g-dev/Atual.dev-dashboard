@@ -1,9 +1,10 @@
 /* ============================================================
    🧰 SHARED UTILITIES - Helper functions used by all scripts
+   Phase 4: first module converted to TypeScript (utils.js → utils.ts)
    ============================================================ */
 
 /** Convert bytes to human-readable format (e.g., "1.5 GB") */
-export function formatBytes(bytes) {
+export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -11,7 +12,7 @@ export function formatBytes(bytes) {
 }
 
 /** Convert seconds to "Xd Xh Xm Xs" format */
-export function formatUptime(seconds) {
+export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -22,14 +23,13 @@ export function formatUptime(seconds) {
 }
 
 /** Convert platform code to display name */
-export function formatPlatform(platform) {
-  const names = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+export function formatPlatform(platform: string): string {
+  const names: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   return names[platform] || platform;
 }
 
-
 /** Convert hex color (#6366f1) to rgba with opacity */
-export function hexToRgba(hex, alpha) {
+export function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -37,10 +37,10 @@ export function hexToRgba(hex, alpha) {
 }
 
 /** Shorthand for document.getElementById() */
-export const $ = (id) => document.getElementById(id);
+export const $ = (id: string): HTMLElement | null => document.getElementById(id);
 
 /** Update a metric progress bar with smooth animation and threshold colors */
-export function updateMetricBar(barId, percent) {
+export function updateMetricBar(barId: string, percent: number): void {
   const el = document.getElementById(barId);
   if (!el) return;
   const pct = Math.max(0, Math.min(100, percent || 0));
@@ -51,7 +51,7 @@ export function updateMetricBar(barId, percent) {
 }
 
 /** Toggle a CSS class on a metric item element */
-export function toggleMetricClass(className, condition, element) {
+export function toggleMetricClass(className: string, condition: unknown, element: HTMLElement | null): void {
   if (!element) return;
   element.classList.toggle(className, !!condition);
 }
@@ -59,13 +59,13 @@ export function toggleMetricClass(className, condition, element) {
 /**
  * Show a user-visible error banner at the top of a dashboard section.
  * (Phase 3 — no important failure should only appear in console.error.)
- * @param {string} sectionId e.g. 'disk', 'network', 'processes', 'battery'
- * @param {string} message human-readable failure text
+ * @param sectionId e.g. 'disk', 'network', 'processes', 'battery'
+ * @param message human-readable failure text
  */
-export function showSectionError(sectionId, message) {
+export function showSectionError(sectionId: string, message: string): void {
   const section = document.getElementById(`section-${sectionId}`);
   if (!section) return;
-  let banner = section.querySelector('.section-error');
+  let banner = section.querySelector<HTMLElement>('.section-error');
   if (!banner) {
     banner = document.createElement('div');
     banner.className = 'section-error';
@@ -76,8 +76,8 @@ export function showSectionError(sectionId, message) {
 }
 
 /** Hide the section error banner (called on a successful refresh). */
-export function clearSectionError(sectionId) {
+export function clearSectionError(sectionId: string): void {
   const section = document.getElementById(`section-${sectionId}`);
-  const banner = section?.querySelector('.section-error');
+  const banner = section?.querySelector<HTMLElement>('.section-error');
   if (banner) banner.style.display = 'none';
 }

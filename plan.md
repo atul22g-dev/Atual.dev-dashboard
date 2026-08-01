@@ -515,15 +515,21 @@ Do not hide errors silently. Log them locally and present safe user-facing state
 **Priority:** P1  
 **Goal:** Establish the modern development foundation before major UI work.
 
+**Status: 🔄 IN PROGRESS** (2026-08-02) — Stage 1 (TypeScript + Vite configuration) and Stage 2 (first module converted) complete; the renderer is now a Vite-built bundle (`out/renderer`) loaded by `main.js`. See `plan-phase.md` §4 for evidence. `allowJs` + `checkJs: false` keep existing `.js` files unchecked while `.ts` files are strictly checked file-by-file.
+
 Do not rewrite everything at once.
 
 ## Stage 1 — Configuration
 
-- [ ] Add TypeScript.
-- [ ] Add `tsconfig.json`.
-- [ ] Enable strict mode progressively.
-- [ ] Add Vite.
-- [ ] Configure Electron main build.
+- [x] Add TypeScript.
+- [x] Add `tsconfig.json`.
+- [x] Enable strict mode progressively.
+- [x] Add Vite.
+- [ ] Configure Electron main build (main stays CJS until Stage 6).
+- [x] Configure preload build (preload stays CJS — sandbox-compatible; typed later in Stage 4).
+- [x] Configure renderer build.
+- [x] Wire `npm run build` / `npm run typecheck`; make `start`/`dev`/`dist:*`/`script:*` build first.
+- [x] Renderer loads the built bundle; loud error if the build is missing.
 - [ ] Configure preload build.
 - [ ] Configure renderer build.
 
@@ -532,7 +538,7 @@ Do not rewrite everything at once.
 Convert:
 
 ```text
-utils.js → utils.ts
+utils.js → utils.ts   ✅ (first module, 2026-08-02)
 ```
 
 ## Stage 3 — Providers

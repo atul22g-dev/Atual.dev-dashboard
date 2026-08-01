@@ -17,7 +17,7 @@
 | 1 | Security Hardening | P0 | ✅ |
 | 2 | Architecture (split main.js) | P0 | ✅ |
 | 3 | Reliability | P1 | ✅ |
-| 4 | TypeScript + Vite Foundation | P1 | ⏳ |
+| 4 | TypeScript + Vite Foundation | P1 | 🔄 |
 | 5 | Testing & CI | P1 | ⏳ |
 | 6 | Low-End Performance | P0/P1 | ⏳ |
 | 7 | UI Modernization | P1 | ⏳ |
@@ -31,7 +31,7 @@
 
 **Goal:** Record the exact starting state before security fixes, refactoring, optimization, UI redesign, or TypeScript/Vite migration.
 
-**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict. **Phases 0–3 complete (2026-08-02)** — baseline, security hardening, architecture (main.js split + renderer section contract), and reliability (command service + error states + crash guards) all done; Phase 4 next.
+**Current state:** Baseline evidence complete (2026-08-01) — see §0.3 checklist and §0.8 verdict. **Phases 0–3 complete (2026-08-02)** — baseline, security hardening, architecture (main.js split + renderer section contract), and reliability (command service + error states + crash guards) all done. **Phase 4 in progress** — Stage 1 (TypeScript + Vite config) and Stage 2 (utils.ts conversion) done; main/preload/renderer modules remain.
 
 ---
 
@@ -720,19 +720,41 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 
 ---
 
-# ⏳ Phase 4 — TypeScript + Vite Foundation (P1)
+# 🔄 Phase 4 — TypeScript + Vite Foundation (P1)
 
-**Goal:** Establish the modern TypeScript/Vite foundation without a big-bang rewrite.
+**Goal:** Establish the modern TypeScript/Vite foundation without a big-bang rewrite. Details in `plan.md` §8.
 
-- [ ] Add TypeScript configuration.
-- [ ] Add Vite build configuration.
-- [ ] Define shared IPC contracts.
-- [ ] Convert utilities first.
-- [ ] Convert providers incrementally.
-- [ ] Convert preload/IPC.
-- [ ] Convert renderer sections.
-- [ ] Convert main process.
-- [ ] Enable strict mode progressively.
+**Status:** 🔄 IN PROGRESS (2026-08-02) — Stage 1 (TypeScript + Vite configuration) and Stage 2 (first module converted: `utils.js → utils.ts`) complete. The renderer is now built by Vite; `main.js` loads the built bundle. Verified by strict typecheck, production build, 32/32 tests, and a real in-app boot. Remaining: providers, preload/IPC, sections, charts/gauges, app, main.
+
+## 4.1 Completed (Stage 1 — Configuration)
+
+- [x] **TypeScript installed** — `typescript@^7.0.2` as a devDependency
+- [x] **`tsconfig.json`** — strict mode, `noEmit` (typecheck-only), `moduleResolution: "bundler"` (so `./utils.js` imports resolve to `utils.ts`), `lib: [ES2022, DOM, DOM.Iterable]`, `allowJs` + `checkJs: false` so existing `.js` renderer files coexist unchecked and strict adoption is file-by-file; `include: ["src/renderer"]` (main/preload stay CJS, converted last)
+- [x] **Vite installed** — `vite@^8.2.0` as a devDependency
+- [x] **`vite.config.mjs`** — `root: src/renderer`, `base: './'` (file://-safe relative asset URLs for `loadFile`), `outDir: out/renderer` (avoids electron-builder's `dist/`), `target: chrome120` (Electron 43 Chromium), `modulePreload.polyfill: false` (app CSP is `script-src 'self'` without `unsafe-inline` — prevents a future dynamic-import CSP breakage)
+- [x] **Renderer build wired** — `npm run build` (`vite build`); `main.js`/`config.js` now load `out/renderer/index.html` (deliberately NO source fallback — the source HTML can't run `.ts`; `main.js` logs a loud "run npm run build" error + `logError` entry if the bundle is missing); `npm start`/`npm run dev`/`npm run dist:*`/`npm run script:*` all build first; electron-builder `files` includes `out/**/*`
+
+## 4.2 Completed (Stage 2 — Utilities)
+
+- [x] **`src/renderer/script/utils.js → utils.ts`** — fully typed: `formatBytes(bytes: number)`, `formatUptime(seconds: number)`, `formatPlatform(platform: string)`, `hexToRgba(hex, alpha)`, `$`, `updateMetricBar`, `toggleMetricClass`, `showSectionError`, `clearSectionError`; all 11 importers keep `./utils.js` specifiers which resolve to `.ts` under bundler resolution (no import-site churn)
+
+## 4.3 Verification
+
+- [x] `npx tsc --noEmit` → clean (strict)
+- [x] `npm run build` → `out/renderer/index.html` + hashed `assets/*` (JS/CSS/icon); every `src`/`href` in the built HTML resolves
+- [x] `npm test` → 32/32 pass
+- [x] In-app boot (`script:Phase1`) → status `completed`, 0 renderer console errors, 40/40 hostile IPC probes rejected, install-rejection UI works, app alive — the built bundle boots and runs the full security surface
+- [x] `npx react-doctor@latest` → No issues found
+
+## 4.4 Remaining / deferred
+
+- [ ] Convert providers (`system/disk/battery/temperature/network/processes/packages`) to TypeScript (Stage 3)
+- [ ] Convert preload + IPC to TypeScript (Stage 4)
+- [ ] Convert renderer sections + charts/gauges + app.js (Stage 5)
+- [ ] Convert main.js entry + config.js (Stage 6)
+- [ ] Define shared IPC contracts (`src/shared/types`, `src/shared/ipc`)
+- [ ] Vite dev server + HMR flow (later refinement; current flow is build-then-run)
+- [ ] `vite dev`-friendly `script:Phase0`/`script:Phase1` measurement baseline re-check (build step now precedes app launches)
 - [ ] Verify production build after each migration step.
 
 **Verification:** application boots, all baseline features still work, and typecheck/build pass.
@@ -880,6 +902,8 @@ A phase is complete only when its verification evidence exists.
 | 2026-08-02 | 2 | Docs sync | README.md rewritten to match Phase 2 architecture (providers/ipc/config/exec-async tree, section lifecycle contract, accurate commands incl. `npm test`/`npm run doctor`, roadmap pointers); plan.md §2.3 debt list annotated with resolved/deferred status |
 | 2026-08-02 | 3 | Command service | `src/main/command-service.js` (`runCommand`/`runCommandUntilSuccess` — standardized timeout 10 s / maxBuffer 1 MB / never-reject result objects, reuses `exec-async.js`); all 7 providers (battery/temperature/network/processes/disk/packages/system) flattened to async/await, callback pyramids eliminated |
 | 2026-08-02 | 3 | Error states + crash guards | `utils.js` `showSectionError`/`clearSectionError` + `.section-error` CSS wired into disk/processes/network/battery/developer; `logger.js` (userData/logs/main-error.log) + `uncaughtException`/`unhandledRejection` guards in main.js pushing `main-error` to renderer via `onMainError` preload bridge; fixed `.main-error-banner` in app.js → 32/32 tests (8 new command-service tests) · node --check clean · react-doctor no new issues |
+| 2026-08-02 | 4 | TypeScript + Vite foundation (Stage 1) | `typescript@7` + `vite@8` devDeps; `tsconfig.json` (strict/noEmit/bundler/allowJs+checkJs:false, include renderer); `vite.config.mjs` (root src/renderer, base './', outDir out/renderer, chrome120, modulePreload.polyfill:false); renderer now Vite-built — `main.js`/`config.js` load `out/renderer/index.html` with loud missing-build error; `npm run build`/`typecheck` added; start/dev/dist/script:* build first; electron-builder files incl. `out/**` → tsc clean · build emits out/renderer/index.html + hashed assets (all refs resolve) · 32/32 tests · boot EXIT 0, 0 console errors, 40/40 hostile IPC probes rejected |
+| 2026-08-02 | 4 | utils.js → utils.ts (Stage 2) | first module converted with full types; all 11 importers keep `./utils.js` specifiers (resolve to `.ts` under bundler resolution — zero import-site churn) → tsc strict clean · build green · react-doctor no issues |
 
 ---
 

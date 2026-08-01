@@ -1,0 +1,39 @@
+/* ============================================================
+   ⚙️ TSCONFIG — Phase 4 (TypeScript + Vite foundation)
+   ============================================================
+   Covers the RENDERER (src/renderer), which is now built by Vite
+   and converted to TypeScript incrementally (utils.js → utils.ts
+   first, then sections/charts/gauges/app in later stages).
+
+   - allowJs + checkJs:false → existing .js files coexist and are
+     NOT type-checked yet; only .ts files are checked, so strict
+     mode can be adopted file-by-file without a big-bang rewrite.
+   - moduleResolution "bundler" → import './utils.js' resolves to
+     './utils.ts' exactly like Vite does at build time.
+   - noEmit → tsc is used ONLY for typechecking (npm run typecheck);
+     Vite/esbuild produces the actual output.
+
+   The MAIN process stays CommonJS .js for now (converted last, in
+   a later stage) and is intentionally not included here.
+   ============================================================ */
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/renderer"]
+}

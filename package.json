@@ -4,18 +4,18 @@
   "description": "A modern desktop system monitoring dashboard built with Electron.",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "nodemon --exec electron .",
-    "dev": "nodemon --exec electron . --dev",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
     "doctor": "npx react-doctor@latest",
     "test": "node --test",
-    "script:Phase0": "node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30",
-    "script:Phase0:measure": "node ./scripts/evidence.js measure",
-    "script:Phase0:capture": "node ./scripts/evidence.js capture",
-    "script:Phase0:stability": "node ./scripts/launch-stability.js 30",
-    "script:Phase1": "node ./scripts/verify-phase1.js"
+    "script:Phase0": "npm run build && node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30",
+    "script:Phase0:measure": "npm run build && node ./scripts/evidence.js measure",
+    "script:Phase0:capture": "npm run build && node ./scripts/evidence.js capture",
+    "script:Phase0:stability": "npm run build && node ./scripts/launch-stability.js 30",
+    "script:Phase1": "npm run build && node ./scripts/verify-phase1.js"
   },
   "author": "Atual.dev",
   "license": "MIT",
@@ -28,6 +28,7 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "out/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -40,7 +41,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png"
@@ -56,7 +59,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -66,11 +72,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png",
@@ -79,6 +89,8 @@
   },
   "devDependencies": {
     "electron": "^43.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0"
   }
 }
