@@ -1,32 +1,33 @@
 /* ============================================================
-   🌐 NETWORK SECTION - Network stats, speed monitor
+   🌐 NETWORK SECTION - Network stats, speed monitor (Phase 4 TS)
    Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
 import { formatSpeed } from '../format.js';
+import type { NetworkSpeedData, SystemInfo } from '../../../shared/ipc/contracts.js';
 
 let _netMaxSpeed = 1024 * 1024;
 
 /** No persistent resources — this section only paints snapshots. */
-export function init() {
+export function init(): void {
   // nothing to set up
 }
 
-function getNetBarPercent(speedBps) {
+function getNetBarPercent(speedBps: number): number {
   if (!speedBps || speedBps <= 0) return 0;
   _netMaxSpeed = Math.max(_netMaxSpeed * 0.95, speedBps * 1.2);
   const pct = (speedBps / _netMaxSpeed) * 100;
   return Math.min(pct, 100);
 }
 
-export function update(info) {
+export function update(info: SystemInfo): void {
   $('netHostname').textContent = info.hostname || '-';
   $('netPlatform').textContent = `${formatPlatform(info.platform)} ${info.arch}`;
 
   const ipCount = info.allInterfaces?.filter(i => i.family === 'IPv4').length || 0;
-  $('netInterfaceCount').textContent = info.networkInterfaces?.length || 0;
-  $('netIPTotal').textContent = ipCount;
+  $('netInterfaceCount').textContent = String(info.networkInterfaces?.length || 0);
+  $('netIPTotal').textContent = String(ipCount);
 
   const table = document.getElementById('networkFullTable');
   if (!table || !info.allInterfaces) return;
@@ -82,7 +83,7 @@ export function update(info) {
   });
 }
 
-export async function loadNetworkSpeed() {
+export async function loadNetworkSpeed(): Promise<void> {
   try {
     const data = await window.electronAPI.getNetworkSpeed();
     if (!data) return;
@@ -94,7 +95,7 @@ export async function loadNetworkSpeed() {
   }
 }
 
-function renderNetworkSpeed(data) {
+function renderNetworkSpeed(data: NetworkSpeedData): void {
   const dlEl = document.getElementById('netDlSpeed');
   const ulEl = document.getElementById('netUlSpeed');
   const dlBar = document.getElementById('netDlBar');
@@ -125,6 +126,6 @@ function renderNetworkSpeed(data) {
 }
 
 /** No timers or listeners to release (speed polling is owned by app.js). */
-export function destroy() {
+export function destroy(): void {
   // nothing to clean up
 }

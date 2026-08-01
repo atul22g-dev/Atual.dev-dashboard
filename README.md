@@ -42,13 +42,14 @@ npm run dev
 atual-dev-dashboard/
 ├── src/
 │   ├── main/                          # 🧠 Main process (Node.js backend)
-│   │   ├── main.js                    # 🚀 Entry point: window + app lifecycle
+│   │   ├── main.js                    # 🚀 Entry point: window + tray + app lifecycle
 │   │   ├── config.js                  # ⚙️ Window geometry, paths, safety limits
 │   │   ├── ipc.js                     # 🔌 Every ipcMain.handle/on registration
 │   │   ├── exec-async.js              # ⏱️ Promisified child_process.exec
 │   │   ├── command-service.js         # ⚙️ Centralized exec: timeout/maxBuffer/errors
 │   │   ├── logger.js                  # 📝 Local crash/error log (userData/logs)
 │   │   ├── validators.js              # 🛡️ Phase 1 input validation (pure, tested)
+│   │   ├── preferences.js             # ⚙️ Phase 8 userData preferences store
 │   │   └── providers/                 # 📡 System data collectors
 │   │       ├── system.js              #   CPU, memory, OS edition/version/activation, GPU
 │   │       ├── disk.js                #   Storage drive utilization
@@ -59,43 +60,53 @@ atual-dev-dashboard/
 │   │       └── packages.js            #   npm/pip ops + whitelisted elevation
 │   ├── preload/
 │   │   └── preload.js                 # 🔌 Secure bridge (contextBridge)
-│   └── renderer/
-│       ├── index.html                 # 📄 HTML shell
-│       ├── script/
-│       │   ├── app.js                 # 🎯 App orchestrator (entry point)
-│       │   ├── charts.js              # 📈 Line charts & donut chart engine
-│       │   ├── gauges.js              # ⭕ Animated ring gauge component
-│       │   ├── utils.js               # 🧰 Shared DOM/format helpers
-│       │   ├── format.js              # 🎨 Shared formatters (speed, CPU model, errors)
-│       │   ├── constants.js           # ⚙️ Refresh intervals + theme storage key
-│       │   └── sections/              # 🧩 One module per section (init/update/destroy)
-│       │       ├── overview-section.js       # Dashboard overview
-│       │       ├── system-section.js         # Device + Windows info cards
-│       │       ├── performance-section.js    # CPU/Memory bars, gauges, charts
-│       │       ├── developer-section.js      # npm/pip package manager
-│       │       ├── network-section.js        # Network interfaces & speed
-│       │       ├── disk-section.js           # Storage drive utilization
-│       │       ├── processes-section.js      # Running processes table
-│       │       └── battery-section.js        # Battery gauge & power status
-│       └── style/
-│           ├── style.css                     # Global styles + theme variables
-│           └── sections/                     # Per-section styles
-│               ├── overview.css
-│               ├── performance.css
-│               ├── developer.css
-│               ├── network.css
-│               ├── disk.css
-│               ├── processes.css
-│               └── battery.css
+│   ├── preload/
+│   │   └── preload.js                 # 🔌 Secure bridge (contextBridge)
+│   ├── renderer/                      # 🖥️ TypeScript renderer (Vite-built)
+│   │   ├── index.html                 # 📄 HTML shell
+│   │   ├── global.d.ts                # 🧩 window.electronAPI typings
+│   │   ├── script/
+│   │   │   ├── app.ts                 # 🎯 App orchestrator (entry point)
+│   │   │   ├── charts.ts              # 📈 Line charts & donut chart engine (DPR-aware)
+│   │   │   ├── gauges.ts              # ⭕ Animated ring gauge component
+│   │   │   ├── utils.ts               # 🧰 Shared DOM/format helpers
+│   │   │   ├── format.ts              # 🎨 Shared formatters (speed, CPU model, errors)
+│   │   │   ├── constants.ts           # ⚙️ Refresh intervals + perf modes + storage keys
+│   │   │   └── sections/              # 🧩 One module per section (init/update/destroy)
+│   │   │       ├── overview-section.ts       # Dashboard overview
+│   │   │       ├── system-section.ts         # Device + Windows info cards
+│   │   │       ├── performance-section.ts    # CPU/Memory bars, gauges, charts
+│   │   │       ├── developer-section.ts      # npm/pip package manager
+│   │   │       ├── network-section.ts        # Network interfaces & speed
+│   │   │       ├── disk-section.ts           # Storage drive utilization
+│   │   │       ├── processes-section.ts      # Running processes table
+│   │   │       ├── battery-section.ts        # Battery gauge & power status
+│   │   │       └── settings-section.ts       # ⚙️ Appearance / performance / Windows prefs
+│   │       └── style/
+│   │           ├── style.css                 # Global styles + theme variables
+│   │           └── sections/                 # Per-section styles
+│   │               ├── overview.css
+│   │               ├── performance.css
+│   │               ├── developer.css
+│   │               ├── network.css
+│   │               ├── disk.css
+│   │               ├── processes.css
+│   │               ├── battery.css
+│   │               └── settings.css
+│   └── shared/ipc/
+│       └── contracts.ts               # 📦 Single source of truth for IPC types
 ├── scripts/                         # 🧪 Verification & evidence tooling
 │   ├── evidence.js                  #   Phase 0 measure / capture / all
 │   ├── launch-stability.js          #   Detached 30-min stability launch
 │   ├── stability-harness.js         #   30-min stability test harness
 │   └── verify-phase1.js             #   In-app hostile-package verification
-├── test/                            # 🧪 Unit tests (node --test)
+├── test/                            # 🧪 Unit tests (node --test, 109 tests)
 │   ├── validators.test.js           #   Phase 1 validators
 │   ├── evidence.test.js             #   Phase 0 tool helpers
-│   └── command-service.test.js      #   Phase 3 command service (8 tests)
+│   ├── command-service.test.js      #   Phase 3 command service (8 tests)
+│   ├── ipc.test.js                  #   Phase 5 IPC + preload contract
+│   ├── providers-*.test.js          #   Phase 5 provider tests (7 files)
+│   └── format.test.mjs / utils.test.mjs  # Phase 5 renderer unit tests
 ├── assets/
 │   └── icon.png                     # App icon
 ├── package.json
@@ -190,7 +201,7 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 Live summary of CPU load, memory usage, GPU temperature, and system uptime.
 Also shows Device Info (processor, RAM, GPU, storage, system type) and Windows Info (edition, version, activation).
 
-**Files:** `overview-section.js` + `system-section.js`
+**Files:** `overview-section.ts` + `system-section.ts`
 
 ### ⚡ Performance
 - **CPU & Memory bars** — Color-coded progress bars (green → yellow → red)
@@ -199,7 +210,7 @@ Also shows Device Info (processor, RAM, GPU, storage, system type) and Windows I
 - **Donut chart** — Memory distribution (used vs free)
 - **Live metrics panel** — CPU, memory, temperature, load averages, free memory with bar animations
 
-**Files:** `performance-section.js`, `charts.js`, `gauges.js`
+**Files:** `performance-section.ts`, `charts.ts`, `gauges.ts`
 
 ### 📦 Developer (Package Manager)
 Manage globally installed npm and pip packages:
@@ -210,26 +221,26 @@ Manage globally installed npm and pip packages:
 - **Admin detection** — Automatically detects if elevation is needed and offers to retry with admin privileges
 - **Action log** — Shows command output in a collapsible panel
 
-**File:** `developer-section.js`
+**File:** `developer-section.ts`
 
 ### 🌐 Network
 - **Real-time transfer speed** — Download/upload rates with adaptive bar scaling
 - **All interfaces table** — Name, IP address, family (IPv4/IPv6), MAC address, internal status
 
-**File:** `network-section.js`
+**File:** `network-section.ts`
 
 ### 💾 Disk
 - **Per-drive cards** — Color-coded usage bars with mount point and total size
 - **Storage summary** — Total, used, and free space across all drives
 
-**File:** `disk-section.js`
+**File:** `disk-section.ts`
 
 ### ⚙️ Processes
 - **Top 30 processes** — Sorted by memory usage
 - **Search** — Filter by process name in real time
 - **PID, CPU %, memory columns** with memory usage bar
 
-**File:** `processes-section.js`
+**File:** `processes-section.ts`
 
 ### 🔋 Battery
 - **Animated ring gauge** — Battery level with gradient colors (red → yellow → green)
@@ -237,7 +248,16 @@ Manage globally installed npm and pip packages:
 - **Charge/discharge rate** — Calculated from level history over time
 - **Detailed stats** — Design capacity, cycle count, voltage, chemistry (from WMI)
 
-**File:** `battery-section.js`
+**File:** `battery-section.ts`
+
+### ⚙️ Settings
+- **Theme mode** — Dark / Light / System (follows the OS), persisted locally
+- **Accent color** — Custom accent via CSS variables
+- **Polling mode** — Balanced / Low Power / Low-End (slows refresh cycles on lower-end hardware)
+- **Reduced motion** — Respects `prefers-reduced-motion` + a manual toggle
+- **Windows prefs** — Start with Windows, minimize to tray (Phase 8)
+
+**File:** `settings-section.ts`
 
 ---
 
@@ -246,8 +266,11 @@ Manage globally installed npm and pip packages:
 | Feature | Details |
 |---------|---------|
 | ✅ **Real-time monitoring** | Auto-refreshes every 1.5 seconds |
-| ✅ **Dark/Light theme** | Toggle with sidebar button or `Ctrl+T`; persisted in localStorage |
+| ✅ **Dark/Light/System theme** | Sidebar toggle or `Ctrl+T`; Settings page adds System mode + accent color |
 | ✅ **Smooth animations** | Canvas-based ring gauges with easing + line charts with 60s history |
+| ✅ **Performance modes** | Balanced / Low Power / Low-End polling multipliers; hidden sections pause updates |
+| ✅ **System tray** | Tray icon, minimize-to-tray, start-with-Windows, notifications (Phase 8) |
+| ✅ **Collapsible sidebar** | `Ctrl+B` (or button); keyboard nav with arrow keys; focus states |
 | ✅ **Cross-platform** | Windows (WMI/PowerShell), macOS (pmset/ioreg), Linux (sysfs) |
 | ✅ **Process search** | Filter running processes by name instantly |
 | ✅ **Package manager** | Browse, install, update, and uninstall npm/pip global packages |
@@ -269,10 +292,14 @@ Manage globally installed npm and pip packages:
 |---------|-------------|
 | `npm start` | Launch the dashboard |
 | `npm run dev` | Launch with DevTools open |
-| `npm test` | Run unit tests (node --test, 32 tests) |
+| `npm run typecheck` | Strict TypeScript check (`tsc --noEmit`) |
+| `npm run build` | Build the renderer with Vite |
+| `npm run check` | Typecheck + unit tests |
+| `npm test` | Run unit tests (node --test, 109 tests) |
+| `npm run test:smoke` | Build + boot the real app inside Electron (0 console errors) |
 | `npm run doctor` | Run React Doctor code-quality scan |
 | `npm run script:Phase1` | In-app security verification (boots real app, hostile probes) |
-| `npm run dist:win` | Build Windows installer (NSIS) |
+| `npm run dist:win` | Build Windows NSIS installer + portable exe |
 | `npm run dist:mac` | Build macOS DMG |
 | `npm run dist:linux` | Build Linux AppImage + deb |
 
@@ -296,19 +323,22 @@ npx react-doctor@latest --scope changed
 ### Testing
 
 ```bash
-npm test
+npm test        # 109 unit tests (node --test, zero external deps)
+npm run test:smoke   # boots the real app inside Electron end-to-end
 ```
 
-Runs `node --test` across `test/` (32 tests): Phase 1 input validators, Phase 0 evidence-tool helpers, and Phase 3 command-service tests (timeout/maxBuffer normalization, fallback-chain semantics, never-hang guarantees). Zero external test dependencies.
+Unit tests cover: Phase 1 input validators, Phase 0 evidence-tool helpers, Phase 3 command-service (timeout/maxBuffer normalization, fallback chains), Phase 5 provider parsing for all 7 providers (fake command-service — no real shell/network calls), the IPC ↔ preload channel contract (every renderer-callable channel must have a main-process registration), and renderer format/utils helpers (imported straight from the `.ts` source).
 
 ### Project Conventions
 
 - **Main process** (`src/main/`): CommonJS (`require`/`module.exports`) — runs in Node.js
 - **Providers** (`src/main/providers/`): one module per data domain; only the surface consumed by `ipc.js` is exported
-- **Renderer** (`src/renderer/`): ES modules (`import`/`export`) — runs in browser context
-- **Each section** (`script/sections/`) implements the `init()` / `update()` / `destroy()` lifecycle contract; `app.js` is the pure orchestrator
-- **Shared utilities** live in `utils.js`; **formatters** in `format.js`; **intervals/keys** in `constants.js`
-- **Charts and gauges** are in dedicated modules (`charts.js`, `gauges.js`) for separation of concerns
+- **Renderer** (`src/renderer/`): **TypeScript** ES modules, compiled by Vite into `out/renderer` — the source HTML can't run standalone, so `npm run build` precedes every launch
+- **Shared IPC contracts** (`src/shared/ipc/contracts.ts`): single source of truth for payload shapes + the full `window.electronAPI` surface
+- **Each section** (`script/sections/*.ts`) implements the `init()` / `update()` / `destroy()` lifecycle contract; `app.ts` is the pure orchestrator
+- **Shared utilities** live in `utils.ts`; **formatters** in `format.ts`; **intervals/keys/perf modes** in `constants.ts`
+- **Charts and gauges** are in dedicated modules (`charts.ts`, `gauges.ts`) for separation of concerns
+- **Windows-native (Phase 8)**: tray + minimize-to-tray + start-with-Windows + notifications live in `main.js`; the persisted store is `preferences.js`
 
 ---
 
@@ -321,14 +351,14 @@ The project follows a phased modernization plan:
 | `plan.md` | Master roadmap: 11 phases from baseline → stable release |
 | `plan-phase.md` | Living tracker: status, evidence, measurements, progress log |
 
-**Status:** Phases 0–3 complete (baseline evidence, security hardening, architecture split + dead-code cleanup, reliability — command service, error states, crash guards). Phase 4 (TypeScript + Vite foundation) is next. See `plan-phase.md` for the full evidence log.
+**Status:** Phases 0–9 complete (baseline, security, architecture, reliability, TypeScript+Vite renderer, testing & CI, low-end performance, UI modernization, Windows-native, packaging scaffolding). Phase 10 (final optimization & release candidate) is partially validated — see `plan-phase.md` for the full evidence log and the honestly documented deferred items (real code signing, live auto-update server, low-end/DPI/multi-monitor physical testing).
 
 ---
 
 ## 🏗️ Building for Distribution
 
 ```bash
-# Windows NSIS installer
+# Windows NSIS installer + portable exe
 npm run dist:win
 
 # macOS DMG
@@ -338,7 +368,7 @@ npm run dist:mac
 npm run dist:linux
 ```
 
-The build configuration is in `package.json` under the `"build"` key. Output goes to the `dist/` directory.
+The build configuration is in `package.json` under the `"build"` key. Output goes to the `dist/` directory. Phase 9 adds a portable target and GitHub publish scaffolding; real code signing and a live auto-update server are deferred until release artifacts exist (see `plan-phase.md`).
 
 ---
 

@@ -85,42 +85,7 @@
 #cpuLoadOverview { color: var(--accent-primary); }
 #memUsedOverview { color: var(--success); }
 
-/* ── Info Panels ── */
-.info-panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.info-panel {
-  padding: 18px 20px;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-.info-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(ellipse at top right, rgba(99,102,241,0.04), transparent 60%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-.info-panel:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-  border-color: rgba(99,102,241,0.08);
-}
-.info-panel:hover::before { opacity: 1; }
-
-.info-panel h3 {
-  font-size: 13px; font-weight: 600; color: var(--text-secondary);
-  margin-bottom: 12px; letter-spacing: 0.5px;
-  display: flex; align-items: center; gap: 6px;
-}
+/* ── Info Rows (shared with system cards) ── */
 .info-rows { display: flex; flex-direction: column; gap: 8px; }
 .info-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -130,42 +95,6 @@
 .info-row:hover { background: rgba(255, 255, 255, 0.04); transform: translateX(2px); }
 .info-key { font-size: 12px; color: var(--text-muted); }
 .info-value { font-size: 12px; font-weight: 600; color: var(--text-primary); text-align: right; word-break: break-all; }
-
-/* ── Memory Visual ── */
-.memory-visual { padding: 0 8px; }
-.memory-bar-container {
-  width: 100%; height: 8px; background: rgba(0,0,0,0.25);
-  border-radius: 4px; overflow: hidden; margin-bottom: 12px;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
-}
-.memory-bar {
-  height: 100%; border-radius: 4px; width: 0%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-.memory-bar::after {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  animation: barShimmer 2.5s infinite;
-}
-.memory-stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;
-}
-.memory-stat {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 8px 4px; background: rgba(0,0,0,0.18); border-radius: var(--radius-sm);
-  transition: background 0.2s, transform 0.2s ease, border-color 0.2s ease;
-  border: 1px solid rgba(255,255,255,0.03);
-}
-.memory-stat:hover {
-  background: rgba(0,0,0,0.25);
-  transform: translateY(-1px);
-  border-color: rgba(255,255,255,0.06);
-}
-
-.stat-label { font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-value { font-size: 14px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 
 /* ── System Grid / Cards (merged from System section) ── */
 .system-grid {
@@ -224,20 +153,13 @@
 body.light-theme #section-overview .section-header h2 {
   -webkit-text-fill-color: transparent;
 }
-body.light-theme .memory-stat { background: rgba(0,0,0,0.04); border-color: transparent; }
-body.light-theme .memory-stat:hover { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.06); }
-body.light-theme .memory-bar-container { background: rgba(0,0,0,0.08); }
-body.light-theme .memory-bar::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); }
 body.light-theme .metric-card { border-color: rgba(0,0,0,0.06); }
 body.light-theme .metric-card:hover { border-color: rgba(99,102,241,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
-body.light-theme .info-panel { border-color: rgba(0,0,0,0.06); }
-body.light-theme .info-panel:hover { border-color: rgba(99,102,241,0.12); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
 body.light-theme .system-card { border-color: rgba(0,0,0,0.06); }
 body.light-theme .system-card:hover { border-color: rgba(99,102,241,0.15); box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-  .info-panels { grid-template-columns: 1fr; }
   .metric-value { font-size: 16px; }
 }

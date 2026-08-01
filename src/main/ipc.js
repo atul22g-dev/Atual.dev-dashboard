@@ -39,8 +39,35 @@ const {
  * Must be invoked after app.whenReady() so Electron's ipcMain is live.
  *
  * @param {() => import('electron').BrowserWindow | null} getWindow
+ * @param {object} [services] Phase 8 services (preferences store, tray/notify hooks)
  */
-function registerIpcHandlers(getWindow) {
+function registerIpcHandlers(getWindow, services = {}) {
+  const {
+    getPreferences = () => ({}),
+    setPreferences = (patch) => patch,
+    showMainWindow = () => {},
+    applyOsPreferences = () => {},
+    notify = () => {},
+  } = services;
+
+  // ─── Phase 8 — App preferences ────────────
+  ipcMain.handle('app-preferences-get', () => getPreferences());
+  ipcMain.handle('app-preferences-set', (_event, patch) => {
+    const next = setPreferences(patch || {});
+    applyOsPreferences(next); // start-with-Windows etc.
+    return next;
+  });
+  ipcMain.on('window-hide', () => getWindow()?.hide());
+  ipcMain.on('window-show', () => showMainWindow());
+  ipcMain.on('notify', (_event, message) => notify(String(message || '')));
+
+  // ─── Phase 9 — safe update check (scaffolding) ───
+  // Returns a structured result; auto-update is not enabled for this build
+  // (no signed releases / update server yet), so this is always "no update".
+  ipcMain.handle('check-for-update', () => ({
+    available: false,
+    message: 'Auto-update is not enabled for this build. Check the project releases manually.',
+  }));
   // ─── System data handlers ───────────────
   ipcMain.handle('get-system-info', () => getSystemInfo());
   ipcMain.handle('get-disk-info', () => getDiskInfo());

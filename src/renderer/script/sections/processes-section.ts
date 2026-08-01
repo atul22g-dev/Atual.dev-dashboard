@@ -1,19 +1,20 @@
 /* ============================================================
-   ⚙️ PROCESSES SECTION - Running processes list
+   ⚙️ PROCESSES SECTION - Running processes list (Phase 4 TS)
    Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes, showSectionError, clearSectionError } from '../utils.js';
+import type { ProcessInfo } from '../../../shared/ipc/contracts.js';
 
-export let processCache = [];
+export let processCache: ProcessInfo[] = [];
 let isLoadingProcesses = false;
 
 /** No persistent resources — this section only paints snapshots. */
-export function init() {
+export function init(): void {
   // nothing to set up
 }
 
-export async function update() {
+export async function update(): Promise<void> {
   if (isLoadingProcesses) return;
   isLoadingProcesses = true;
   try {
@@ -29,7 +30,7 @@ export async function update() {
   }
 }
 
-export function renderProcesses(processes, filter) {
+export function renderProcesses(processes: ProcessInfo[], filter: string): void {
   const tbody = document.getElementById('processTableBody');
   if (!tbody) return;
 
@@ -61,7 +62,7 @@ export function renderProcesses(processes, filter) {
     // Build the row with DOM APIs — dynamic values via textContent (auto-escaped)
     const pid = document.createElement('span');
     pid.className = 'proc-pid';
-    pid.textContent = proc.pid;
+    pid.textContent = String(proc.pid);
     const name = document.createElement('span');
     name.className = 'proc-name';
     name.textContent = proc.name;
@@ -82,12 +83,12 @@ export function renderProcesses(processes, filter) {
     tbody.appendChild(row);
   });
 
-  $('processTotal').textContent = filtered.length;
+  $('processTotal').textContent = String(filtered.length);
   const totalMem = filtered.reduce((s, p) => s + p.memory, 0);
   $('processTotalMem').textContent = formatBytes(totalMem);
 }
 
 /** No timers or listeners to release (polling is owned by app.js). */
-export function destroy() {
+export function destroy(): void {
   // nothing to clean up
 }

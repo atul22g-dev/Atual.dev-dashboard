@@ -57,15 +57,16 @@ async function getNetworkSpeed() {
           }
         }
       } else if (platform === 'darwin') {
-        // Parse netstat -ib: Name Mtu Network Address Ipkts Ierrs Opkts Oerrs Coll Ibytes Obytes
+        // Parse netstat -ib: Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes Coll
+        // (11 columns; Ibytes = col 7 / idx 6, Obytes = col 10 / idx 9)
         const lines = stdout.split('\n').filter(l => l.trim() && !l.includes('Name'));
         for (const line of lines) {
           const parts = line.trim().split(/\s+/);
           if (parts.length >= 11) {
             const name = parts[0];
             if (name && !name.startsWith('lo')) {
-              const ibytes = parseInt(parts[9]) || 0;
-              const obytes = parseInt(parts[10]) || 0;
+              const ibytes = parseInt(parts[6]) || 0;
+              const obytes = parseInt(parts[9]) || 0;
               interfaces[name] = { rx: ibytes, tx: obytes };
             }
           }

@@ -10,7 +10,12 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
     "doctor": "npx react-doctor@latest",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
     "test": "node --test",
+    "test:watch": "node --test --watch",
+    "test:smoke": "npm run build && node scripts/smoke-test.js",
+    "check": "npm run typecheck && npm test",
     "script:Phase0": "npm run build && node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30",
     "script:Phase0:measure": "npm run build && node ./scripts/evidence.js measure",
     "script:Phase0:capture": "npm run build && node ./scripts/evidence.js capture",
@@ -44,16 +49,35 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "verifyUpdateCodeSignature": false,
+      "publisherName": "Atual.dev",
+      "signAndEditExecutable": true
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Atual.dev Dashboard"
+      "shortcutName": "Atual.dev Dashboard",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "atual-dev",
+      "repo": "dashboard-releases",
+      "private": false
     },
     "mac": {
       "target": [

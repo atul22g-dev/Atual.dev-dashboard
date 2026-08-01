@@ -1,21 +1,19 @@
 /* ============================================================
-   💾 DISK SECTION - Storage device info
+   💾 DISK SECTION - Storage device info (Phase 4 TS)
    Contract: init() / update() / destroy() (Phase 2)
    ============================================================ */
 
 import { $, formatBytes, showSectionError, clearSectionError } from '../utils.js';
-
-let diskInfoCache = [];
+import type { DiskInfo } from '../../../shared/ipc/contracts.js';
 
 /** No persistent resources — this section only paints snapshots. */
-export function init() {
+export function init(): void {
   // nothing to set up
 }
 
-export async function update() {
+export async function update(): Promise<void> {
   try {
     const disks = await window.electronAPI.getDiskInfo();
-    diskInfoCache = disks;
     renderDiskInfo(disks);
     clearSectionError('disk');
   } catch (err) {
@@ -24,7 +22,7 @@ export async function update() {
   }
 }
 
-function renderDiskInfo(disks) {
+function renderDiskInfo(disks: DiskInfo[]): void {
   const grid = document.getElementById('diskGrid');
   if (!grid) return;
 
@@ -71,7 +69,7 @@ function renderDiskInfo(disks) {
 
     const stats = document.createElement('div');
     stats.className = 'disk-stats';
-    const stat = (label, value) => {
+    const stat = (label: string, value: string): HTMLElement => {
       const s = document.createElement('span');
       s.appendChild(document.createTextNode(label + ' '));
       const strong = document.createElement('strong');
@@ -97,6 +95,6 @@ function renderDiskInfo(disks) {
 }
 
 /** No timers or listeners to release. */
-export function destroy() {
+export function destroy(): void {
   // nothing to clean up
 }

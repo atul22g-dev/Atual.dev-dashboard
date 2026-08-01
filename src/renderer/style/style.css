@@ -26,8 +26,9 @@
   --transition-normal: 0.3s ease;
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.5);
-  --gradient-accent: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
   --titlebar-height: 44px;
 }
 
@@ -82,7 +83,6 @@ body {
 }
 .title-bar-drag { display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
 .app-brand { display: flex; align-items: center; gap: 8px; }
-.app-logo { color: var(--accent-primary); }
 .app-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.3px; }
 
 /* ── Window Controls ── */
@@ -301,4 +301,60 @@ body.theme-transition *::after {
 .main-error-banner.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ══════════════════════════════════════════
+   Phase 7 — Collapsible Sidebar (Ctrl+B)
+   ══════════════════════════════════════════ */
+.sidebar-collapse-btn {
+  display: flex; align-items: center; gap: 8px;
+  margin: 4px 8px 8px; padding: 8px 12px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: var(--transition-fast);
+}
+.sidebar-collapse-btn:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+
+body.sidebar-collapsed .sidebar { width: var(--sidebar-collapsed-width); min-width: var(--sidebar-collapsed-width); }
+body.sidebar-collapsed .sidebar-title,
+body.sidebar-collapsed .sidebar-subtitle,
+body.sidebar-collapsed .nav-item span,
+body.sidebar-collapsed .sidebar-collapse-btn span,
+body.sidebar-collapsed .theme-toggle-label,
+body.sidebar-collapsed .theme-toggle-keybind,
+body.sidebar-collapsed .status-text,
+body.sidebar-collapsed .version-badge { display: none; }
+body.sidebar-collapsed .nav-item { justify-content: center; padding: 10px; }
+body.sidebar-collapsed .theme-toggle { justify-content: center; padding: 8px; }
+body.sidebar-collapsed .sidebar-collapse-btn { justify-content: center; padding: 8px; }
+body.sidebar-collapsed .sidebar-footer { flex-direction: column; gap: 8px; }
+body.sidebar-collapsed .sidebar-header { padding: 12px 8px; }
+
+/* ══════════════════════════════════════════
+   Phase 7 — Keyboard nav + focus states
+   ══════════════════════════════════════════ */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.nav-item:focus-visible { outline-offset: -2px; }
+
+/* ══════════════════════════════════════════
+   Phase 7 — Reduced motion
+   ══════════════════════════════════════════ */
+body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

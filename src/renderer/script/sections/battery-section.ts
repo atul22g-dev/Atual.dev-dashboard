@@ -1,39 +1,40 @@
 /* ============================================================
-   🔋 BATTERY SECTION - Power status and battery metrics
+   🔋 BATTERY SECTION - Power status and battery metrics (Phase 4 TS)
    Contract: init() / update(info) / destroy() (Phase 2)
    ============================================================ */
 
-import { $, formatUptime, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
+import { formatUptime, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
 import { RingGauge } from '../gauges.js';
+import type { BatteryDetails, SystemInfo } from '../../../shared/ipc/contracts.js';
 
-let batteryGauge = null;
-let _batteryDetails = null;
+let batteryGauge: RingGauge | null = null;
+let _batteryDetails: BatteryDetails | null = null;
 let _batteryDetailsFailed = false;
-const _batteryLevelHistory = [];
+const _batteryLevelHistory: Array<{ level: number; time: number }> = [];
 
-function setBatteryField(id, value, alwaysShow = false) {
+function setBatteryField(id: string, value?: string | number | null, alwaysShow = false): void {
   const el = document.getElementById(id);
   if (!el) return;
-  const hasData = value !== null && value !== undefined && value !== '' && 
-                  value !== '--' && value !== 'N/A' && 
-                  !(typeof value === 'string' && value.trim() === '');
+  const hasData = value !== null && value !== undefined && value !== '' &&
+    value !== '--' && value !== 'N/A' &&
+    !(typeof value === 'string' && value.trim() === '');
   el.textContent = hasData ? String(value) : '--';
-  const row = el.closest('.info-row, .battery-stat');
+  const row = el.closest('.info-row, .battery-stat') as HTMLElement | null;
   if (row) row.style.display = (hasData || alwaysShow) ? '' : 'none';
 }
 
-function hideEmptyBatteryCards() {
+function hideEmptyBatteryCards(): void {
   document.querySelectorAll('.dev-detail-card').forEach(card => {
     const visibleRows = card.querySelectorAll('.info-row');
     let anyVisible = false;
     visibleRows.forEach(row => {
-      if (row.style.display !== 'none') anyVisible = true;
+      if ((row as HTMLElement).style.display !== 'none') anyVisible = true;
     });
-    card.style.display = anyVisible ? '' : 'none';
+    (card as HTMLElement).style.display = anyVisible ? '' : 'none';
   });
 }
 
-function initBatteryGauge() {
+function initBatteryGauge(): void {
   batteryGauge = new RingGauge('batteryGauge', {
     ringWidth: 12,
     lowThreshold: 30,
@@ -46,7 +47,7 @@ function initBatteryGauge() {
   });
 }
 
-async function loadBatteryDetails() {
+async function loadBatteryDetails(): Promise<void> {
   try {
     const details = await window.electronAPI.getBatteryDetails();
     _batteryDetails = details;
@@ -60,12 +61,12 @@ async function loadBatteryDetails() {
 }
 
 /** Create the gauge + fetch static battery specs once. */
-export function init() {
+export function init(): void {
   initBatteryGauge();
   loadBatteryDetails();
 }
 
-export async function update(info) {
+export async function update(info: SystemInfo): Promise<void> {
   try {
     const bat = await window.electronAPI.getBatteryInfo();
 
@@ -118,7 +119,7 @@ export async function update(info) {
       const runTimeSecs = _batteryDetails?.EstimatedRunTime || _batteryDetails?.estimatedRunTime;
       if (runTimeSecs && parseInt(runTimeSecs) > 0 && parseInt(runTimeSecs) < 100000) {
         const mins = Math.round(parseInt(runTimeSecs) / 60);
-        const runtime = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
+        const runtime = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
         setBatteryField('batteryEstRuntime', runtime);
         setBatteryField('batteryEstRuntimeDetail', runtime);
       } else {
@@ -127,14 +128,14 @@ export async function update(info) {
       }
 
       let timeToFull = _batteryDetails?.TimeToFullCharge;
-      const ttfVal = parseInt(timeToFull);
+      const ttfVal = parseInt(timeToFull ?? '');
       if (!ttfVal || ttfVal <= 0 || ttfVal >= 99999) {
         timeToFull = _batteryDetails?.timeToFullCharge;
       }
-      const ttfFinal = parseInt(timeToFull);
+      const ttfFinal = parseInt(timeToFull ?? '');
       if (ttfFinal > 0 && ttfFinal < 99999) {
         const mins = Math.round(ttfFinal);
-        setBatteryField('batteryTimeFull', mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`);
+        setBatteryField('batteryTimeFull', mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`);
       } else {
         setBatteryField('batteryTimeFull');
       }
@@ -169,7 +170,7 @@ export async function update(info) {
 }
 
 /** Destroy the ring gauge and reset state. */
-export function destroy() {
+export function destroy(): void {
   if (batteryGauge) {
     batteryGauge.destroy();
     batteryGauge = null;

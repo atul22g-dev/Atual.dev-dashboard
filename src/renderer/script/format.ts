@@ -1,14 +1,9 @@
 /* ============================================================
-   🎨 FORMAT — shared renderer formatting helpers (Phase 2)
-   ============================================================
-   Extracted from the sections so formatting logic lives in one
-   place: network speed, shortened CPU model names, and the
-   permission-error detector (previously duplicated inline in
-   developer-section.js).
+   🎨 FORMAT — shared renderer formatting helpers (Phase 2 → 4 TS)
    ============================================================ */
 
 /** Format a byte/second rate into a human-readable speed string. */
-export function formatSpeed(bps) {
+export function formatSpeed(bps: number | null | undefined): string {
   if (bps === null || bps === undefined) return '--';
   if (bps < 0) return '--';
   if (bps < 1000) return `${bps.toFixed(0)} B/s`;
@@ -22,14 +17,14 @@ export function formatSpeed(bps) {
  * Strips "(R)", "CPU", clock speeds and parenthetical suffixes,
  * then truncates to ~22 chars with an ellipsis if needed.
  */
-export function formatCpuModel(model) {
+export function formatCpuModel(model?: string): string {
   const m = model || 'Unknown';
   const short = m.replace(/^\(R\)|\s*CPU|\s*@\s*[\d.]+GHz|\s*\d+\.\d+GHz|\s*\(.*?\)/gi, '').trim() || m.split('/')[0];
   return short.length > 25 ? short.substring(0, 22) + '...' : short;
 }
 
 /** True when a package-command error message indicates a permissions problem. */
-export function isPermissionError(message) {
+export function isPermissionError(message?: string): boolean {
   const msg = (message || '').toLowerCase();
   return msg.includes('eacces') ||
     msg.includes('eperm') ||

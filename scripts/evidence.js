@@ -9,8 +9,8 @@
        Plain Node.js — no Electron runtime needed.
 
      capture  (screenshots + feature pass)
-       Boots the REAL app inside Electron, navigates all 7
-       sections, runs an automated DOM feature pass, captures
+       Boots the REAL app inside Electron, navigates all 8
+       sections (incl. Settings), runs an automated DOM feature pass, captures
        PNGs (dark / light / small-window), and records renderer
        console errors to screenshots/evidence.json.
 
@@ -105,7 +105,7 @@ module.exports = {
 // ──────────────────────────────────────────────
 
 const OUT_DIR = path.join(__dirname, '..', 'screenshots');
-const SECTIONS = ['overview', 'performance', 'developer', 'network', 'disk', 'processes', 'battery'];
+const SECTIONS = ['overview', 'performance', 'developer', 'network', 'disk', 'processes', 'battery', 'settings'];
 
 // Element IDs per section that must exist AND hold a real value (not a placeholder)
 const FEATURE_CHECKS = {
@@ -116,6 +116,7 @@ const FEATURE_CHECKS = {
   disk: ['diskGrid', 'diskTotalSize', 'diskTotalPercent'],
   processes: ['processSearch', 'processTableBody', 'processTotal'],
   battery: ['batteryContent'], // battery gauge only exists when a battery is detected
+  settings: ['settingsThemeMode', 'settingsAccentColor', 'settingsPerfMode', 'settingsReducedMotion', 'settingsStartWithWindows', 'settingsMinimizeToTray'],
 };
 
 // Values that mean "not populated yet" (NOT legitimate data). Counts and

@@ -79,6 +79,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close: () => ipcRenderer.send('window-close'),
 
   // ============================================
+  // ⚙️ Preferences & Tray (Phase 8)
+  // ============================================
+
+  // Read/write the persisted AppPreferences object (main-process store)
+  getAppPreferences: () => ipcRenderer.invoke('app-preferences-get'),
+  setAppPreferences: (prefs) => ipcRenderer.invoke('app-preferences-set', prefs),
+  // Hide to tray / restore from tray
+  hideWindow: () => ipcRenderer.send('window-hide'),
+  showWindow: () => ipcRenderer.send('window-show'),
+  // Fire a native Windows notification from the renderer
+  notify: (message) => ipcRenderer.send('notify', message),
+  // Safe update check (Phase 9 scaffolding — returns not-available by default)
+  checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
+
+  // ============================================
   // 🔔 Event Listeners (main → renderer)
   // ============================================
   

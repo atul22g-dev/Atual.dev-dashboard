@@ -11,6 +11,20 @@ const { runCommand } = require('../command-service');
 const { PROCESS_SCAN_LIMIT, PROCESS_RESULT_LIMIT } = require('../config');
 
 /**
+ * Split one tasklist /FO CSV line into unquoted fields.
+ * Handles quoted fields that contain commas ("245,000 K") correctly.
+ */
+function parseTasklistCsvLine(line) {
+  const fields = [];
+  const re = /"([^"]*)"|([^,]+)/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    fields.push(m[1] !== undefined ? m[1] : (m[2] || ''));
+  }
+  return fields;
+}
+
+/**
  * ⚙️ Get list of running processes
  * Uses tasklist (Windows) or ps aux (macOS/Linux)
  * Returns top 30 processes sorted by memory usage
@@ -38,15 +52,18 @@ async function getProcessList() {
 
       if (platform === 'win32') {
         // Parse tasklist CSV: "Name","PID","Session","#","Memory"
-        const parts = line.split(',');
+        // NOTE: the Memory field contains a thousands separator inside quotes
+        // (e.g. "245,000 K"), so a naive split(',') would break it — parse
+        // the line as quoted CSV fields instead.
+        const parts = parseTasklistCsvLine(line);
         if (parts.length >= 5) {
-          const name = parts[0]?.replace(/"/g, '').trim() || 'Unknown';
-          const pid = parseInt(parts[1]?.replace(/"/g, '').trim()) || 0;
-          const memStr = parts[4]?.replace(/"/g, '').trim() || '0 K';
+          const name = parts[0]?.trim() || 'Unknown';
+          const pid = parseInt(parts[1]?.trim()) || 0;
+          const memStr = parts[4]?.trim() || '0 K';
           let memBytes = 0;
           const memMatch = memStr.match(/([\d,.]+)\s*(K|M|G|B)/i);
           if (memMatch) {
-            const val = parseFloat(memMatch[1].replace(/,/, ''));
+            const val = parseFloat(memMatch[1].replace(/,/g, ''));
             const unit = memMatch[2].toUpperCase();
             if (unit === 'K') memBytes = val * 1024;
             else if (unit === 'M') memBytes = val * 1024 * 1024;

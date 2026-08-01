@@ -36,8 +36,12 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** Shorthand for document.getElementById() */
-export const $ = (id: string): HTMLElement | null => document.getElementById(id);
+/**
+ * Shorthand for document.getElementById() — returns a non-null element.
+ * Every call site targets an id that exists in index.html, so we assert
+ * non-null to keep the hot paths free of `!` noise (Phase 4).
+ */
+export const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
 
 /** Update a metric progress bar with smooth animation and threshold colors */
 export function updateMetricBar(barId: string, percent: number): void {

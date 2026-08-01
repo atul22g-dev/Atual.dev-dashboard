@@ -39,4 +39,4 @@ function logError(scope, error) {
   }
 }
 
-module.exports = { logError, getLogDir };
+module.exports = { logError };

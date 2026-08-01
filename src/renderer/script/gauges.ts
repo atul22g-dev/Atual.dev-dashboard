@@ -1,14 +1,39 @@
 /* ============================================================
-   ⭕ RING GAUGE - Animated circular progress rings
+   ⭕ RING GAUGE - Animated circular progress rings (Phase 4 TS)
    ============================================================ */
 
 import { hexToRgba } from './utils.js';
 
+export interface RingGaugeOptions {
+  ringWidth?: number;
+  ringSpacing?: number;
+  value?: number;
+  animatedValue?: number;
+  min?: number;
+  max?: number;
+  lowThreshold?: number;
+  midThreshold?: number;
+  lowColor?: string;
+  midColor?: string;
+  highColor?: string;
+  glowIntensity?: number;
+  animationSpeed?: number;
+  trackColor?: string;
+}
+
 export class RingGauge {
-  constructor(canvasId, options = {}) {
-    this.canvas = document.getElementById(canvasId);
-    if (!this.canvas) return;
-    this.ctx = this.canvas.getContext('2d');
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
+  private options!: Required<Omit<RingGaugeOptions, 'trackColor'>> & { trackColor?: string };
+  private animFrameId: number | null = null;
+  private _isAnimating = false;
+  private _themeObserver: MutationObserver | null = null;
+
+  constructor(canvasId: string, options: RingGaugeOptions = {}) {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
+    if (!canvas) return;
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d')!;
 
     this.options = {
       ringWidth: 14,
@@ -37,29 +62,25 @@ export class RingGauge {
     });
   }
 
-  getTrackColor() {
+  getTrackColor(): string {
     return document.body.classList.contains('light-theme')
       ? 'rgba(0, 0, 0, 0.06)'
       : 'rgba(255, 255, 255, 0.06)';
   }
 
-  getMutedColor() {
+  getMutedColor(): string {
     return document.body.classList.contains('light-theme') ? '#8888a0' : '#5c5c72';
   }
 
-  getGradientColor(percentage) {
+  getGradientColor(percentage: number): string {
     const { lowThreshold, midThreshold, lowColor, midColor, highColor } = this.options;
     if (percentage <= lowThreshold) return lowColor;
     if (percentage >= midThreshold) return highColor;
-    if (percentage <= midThreshold) {
-      const t = (percentage - lowThreshold) / (midThreshold - lowThreshold);
-      return this.lerpColor(lowColor, midColor, t);
-    }
-    const t = (percentage - midThreshold) / (100 - midThreshold);
-    return this.lerpColor(midColor, highColor, t);
+    const t = (percentage - lowThreshold) / (midThreshold - lowThreshold);
+    return this.lerpColor(lowColor, midColor, t);
   }
 
-  lerpColor(a, b, t) {
+  lerpColor(a: string, b: string, t: number): string {
     const ar = parseInt(a.slice(1, 3), 16);
     const ag = parseInt(a.slice(3, 5), 16);
     const ab = parseInt(a.slice(5, 7), 16);
@@ -69,7 +90,7 @@ export class RingGauge {
     return `rgb(${Math.round(ar + (br - ar) * t)}, ${Math.round(ag + (bg - ag) * t)}, ${Math.round(ab + (bb - ab) * t)})`;
   }
 
-  setValue(val) {
+  setValue(val: number): void {
     const clamped = Math.max(this.options.min, Math.min(this.options.max, val));
     this.options.value = clamped;
     if (!this._isAnimating) {
@@ -78,7 +99,7 @@ export class RingGauge {
     }
   }
 
-  animate() {
+  animate(): void {
     const opts = this.options;
     const diff = opts.value - opts.animatedValue;
     if (Math.abs(diff) < 0.1) {
@@ -92,7 +113,7 @@ export class RingGauge {
     this.animFrameId = requestAnimationFrame(() => this.animate());
   }
 
-  draw(immediate = false) {
+  draw(immediate = false): void {
     const ctx = this.ctx;
     const canvas = this.canvas;
     const w = canvas.width;
@@ -185,7 +206,7 @@ export class RingGauge {
     }
   }
 
-  destroy() {
+  destroy(): void {
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
     if (this._themeObserver) this._themeObserver.disconnect();
   }

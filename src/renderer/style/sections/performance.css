@@ -151,41 +151,6 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
 
 
 
-/* ── Section Divider Title ── */
-.perf-section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 22px 0 14px;
-}
-.perf-section-title span {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  white-space: nowrap;
-  position: relative;
-  padding-left: 12px;
-}
-.perf-section-title span::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 12px;
-  border-radius: 2px;
-  background: var(--gradient-accent);
-}
-.perf-section-title::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, var(--border-color) 20%, transparent);
-}
-
 /* ── Ring Gauges ── */
 .gauge-row {
   display: grid;

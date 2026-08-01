@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="style/sections/processes.css" />
   <link rel="stylesheet" href="style/sections/battery.css" />
   <link rel="stylesheet" href="style/sections/developer.css" />
+  <link rel="stylesheet" href="style/sections/settings.css" />
 </head>
 
 <body>
@@ -132,8 +133,8 @@
             <circle cx="14" cy="14" r="1" fill="currentColor" />
           </svg>
           <span>Processes</span>
-        </a>
-        <!-- 🔋 Battery - Battery gauge icon -->
+        </a>          <!-- 🔋 Battery - Battery gauge icon -->
+          <!-- (Settings icon lives after the Battery nav item above) -->
         <a href="#" class="nav-item" data-section="battery">
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"
             stroke-linecap="round" stroke-linejoin="round">
@@ -145,7 +146,23 @@
           </svg>
           <span>Battery</span>
         </a>
+        <!-- ⚙️ Settings - Gear icon -->
+        <a href="#" class="nav-item" data-section="settings">
+          <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10" cy="10" r="3" />
+            <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.5 1.5M14 14l1.5 1.5M4.5 15.5L6 14M14 6l1.5-1.5" />
+          </svg>
+          <span>Settings</span>
+        </a>
       </nav>
+      <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar (Ctrl+B)">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="12 4 6 10 12 16" />
+        </svg>
+        <span>Collapse</span>
+      </button>
 
       <!-- Theme Toggle -->
       <div class="theme-toggle-wrapper">
@@ -1086,15 +1103,74 @@
               </div>
             </div>
           </div>
-        </section>
-      </main>
-    </div>
+        </section>          <!-- ── Settings Section ── -->
+          <section class="dashboard-section" id="section-settings">
+            <div class="section-header">
+              <h2>Settings</h2>
+              <p class="section-description">
+                Appearance, performance, and app preferences
+              </p>
+            </div>
+            <div class="settings-grid">
+              <div class="settings-card glass">
+                <h3>Appearance</h3>
+                <div class="settings-row">
+                  <label for="settingsThemeMode">Theme mode</label>
+                  <select id="settingsThemeMode">
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="system">System</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <label for="settingsAccentColor">Accent color</label>
+                  <input type="color" id="settingsAccentColor" value="#6366f1" />
+                </div>
+                <div class="settings-row">
+                  <label for="settingsReducedMotion">Reduce motion</label>
+                  <input type="checkbox" id="settingsReducedMotion" />
+                </div>
+              </div>
+              <div class="settings-card glass">
+                <h3>Performance</h3>
+                <div class="settings-row">
+                  <label for="settingsPerfMode">Polling mode</label>
+                  <select id="settingsPerfMode">
+                    <option value="balanced">Balanced</option>
+                    <option value="lowPower">Low Power</option>
+                    <option value="lowEnd">Low-End</option>
+                  </select>
+                </div>
+                <p class="settings-hint">
+                  Low Power / Low-End slow down refresh cycles to reduce CPU and
+                  battery use on lower-end hardware.
+                </p>
+              </div>
+              <div class="settings-card glass">
+                <h3>Windows</h3>
+                <div class="settings-row">
+                  <label for="settingsStartWithWindows">Start with Windows</label>
+                  <input type="checkbox" id="settingsStartWithWindows" />
+                </div>
+                <div class="settings-row">
+                  <label for="settingsMinimizeToTray">Minimize to tray</label>
+                  <input type="checkbox" id="settingsMinimizeToTray" />
+                </div>
+                <p class="settings-hint">
+                  Tray preferences are applied by the main process and persist in
+                  your user data folder.
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
     <!-- /app-body -->
   </div>
   <!-- /app-container -->
 
   <!-- 📦 JavaScript modules - dependencies handled via import/export -->
-  <script type="module" src="script/app.js"></script>
+  <script type="module" src="script/app.ts"></script>
 </body>
 
 </html>

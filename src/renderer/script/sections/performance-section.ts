@@ -1,22 +1,23 @@
 /* ============================================================
    ⚡ PERFORMANCE SECTION - Performance metrics + Live System Metrics
-   Contract: init() / update(info) / destroy() (Phase 2)
+   Contract: init() / update(info) / destroy() (Phase 2 → 4 TS)
    ============================================================ */
 
 import { $, formatBytes, formatUptime, updateMetricBar, toggleMetricClass } from '../utils.js';
 import { cpuRingGauge, memRingGauge, vmRingGauge } from '../charts.js';
 import { formatCpuModel } from '../format.js';
+import type { SystemInfo } from '../../../shared/ipc/contracts.js';
 
 /** No persistent resources — this section only paints snapshots. */
-export function init() {
+export function init(): void {
   // nothing to set up
 }
 
-export function update(info) {
+export function update(info: SystemInfo): void {
   const cpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
   $('cpuLoadValue').textContent = `${cpuLoad.toFixed(1)}%`;
   $('cpuLoadBar').style.width = `${cpuLoad}%`;
-  $('cpuCoresPerf').textContent = info.cpus;
+  $('cpuCoresPerf').textContent = String(info.cpus);
   $('cpuModelPerf').textContent = info.cpuModel || 'Unknown';
 
   const usedMem = info.totalMemory - info.freeMemory;
@@ -97,6 +98,6 @@ export function update(info) {
 }
 
 /** No timers or listeners to release. */
-export function destroy() {
+export function destroy(): void {
   // nothing to clean up
 }

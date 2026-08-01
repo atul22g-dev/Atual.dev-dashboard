@@ -1,22 +1,56 @@
 /* ============================================================
-   📈 CHART ENGINE - Canvas-based charts
+   📈 CHART ENGINE - Canvas-based charts (Phase 4 TS, Phase 6 DPR)
    ============================================================ */
 
 import { formatBytes, hexToRgba } from './utils.js';
 import { RingGauge } from './gauges.js';
+import type { SystemInfo } from '../../shared/ipc/contracts.js';
+import { MAX_HISTORY } from './constants.js';
 
 // ──────────────────────────────────────────────
 // 📈 LINE CHART ENGINE
 // ──────────────────────────────────────────────
 
-class ChartEngine {
-  constructor(canvasId, options = {}) {
-    this.canvas = document.getElementById(canvasId);
-    if (!this.canvas) return;
-    this.ctx = this.canvas.getContext('2d');
+export interface ChartDataset {
+  color?: string;
+  data: Array<number | null | undefined>;
+}
 
-    this.width = this.canvas.width;
-    this.height = this.canvas.height;
+export interface ChartOptions {
+  padding?: { top: number; right: number; bottom: number; left: number };
+  lineWidth?: number;
+  fillOpacity?: number;
+  yTicks?: number;
+  ySuffix?: string;
+  yMin?: number;
+  yMax?: number;
+  smooth?: boolean;
+  datasets?: ChartDataset[];
+}
+
+class ChartEngine {
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
+  private width = 0;
+  private height = 0;
+  private options!: Required<Omit<ChartOptions, 'padding' | 'datasets'>> & {
+    padding: { top: number; right: number; bottom: number; left: number };
+    datasets: ChartDataset[];
+  };
+  private resizeHandler!: () => void;
+  private _tooltip: HTMLElement | null = null;
+  private _boundMouseMove!: (e: MouseEvent) => void;
+  private _boundMouseLeave!: () => void;
+  private _hoveredPoint: { x: number; y: number; color: string; index: number } | null = null;
+
+  constructor(canvasId: string, options: ChartOptions = {}) {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
+    if (!canvas) return;
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d')!;
+
+    this.width = canvas.width;
+    this.height = canvas.height;
 
     this.options = {
       padding: { top: 16, right: 16, bottom: 26, left: 56 },
@@ -29,7 +63,7 @@ class ChartEngine {
       smooth: true,
       datasets: [],
       ...options,
-    };
+    } as ChartEngine['options'];
 
     this.resizeHandler = () => this.resize();
     window.addEventListener('resize', this.resizeHandler);
@@ -44,7 +78,7 @@ class ChartEngine {
     requestAnimationFrame(() => this.resize());
   }
 
-  _createTooltip() {
+  _createTooltip(): void {
     if (!this.canvas) return;
     const parent = this.canvas.parentElement;
     if (!parent) return;
@@ -65,7 +99,7 @@ class ChartEngine {
     this._tooltip.style.display = 'none';
   }
 
-  _onMouseMove(e) {
+  _onMouseMove(e: MouseEvent): void {
     if (!this._tooltip || !this.options.datasets.length) return;
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -77,18 +111,16 @@ class ChartEngine {
       return;
     }
 
-    let bestDataset = null;
-    let bestData = [];
+    let bestData: Array<number | null | undefined> = [];
     let bestColor = '';
     for (const ds of this.options.datasets) {
       if (ds.data && ds.data.length > 0) {
-        bestDataset = ds;
         bestData = ds.data;
         bestColor = ds.color || '#6366f1';
         break;
       }
     }
-    if (!bestDataset || bestData.length < 2) {
+    if (bestData.length < 2) {
       this._tooltip.style.display = 'none';
       return;
     }
@@ -116,7 +148,7 @@ class ChartEngine {
     const indicatorEl = this._tooltip.querySelector('.chart-tooltip-indicator');
 
     if (valueEl) valueEl.textContent = `${value.toFixed(1)}${opts.ySuffix}`;
-    if (indicatorEl) indicatorEl.style.background = bestColor;
+    if (indicatorEl) (indicatorEl as HTMLElement).style.background = bestColor;
 
     if (timeEl) {
       const totalPoints = bestData.length;
@@ -147,7 +179,7 @@ class ChartEngine {
     this.draw();
   }
 
-  _onMouseLeave() {
+  _onMouseLeave(): void {
     if (this._tooltip) this._tooltip.style.display = 'none';
     if (this._hoveredPoint) {
       this._hoveredPoint = null;
@@ -155,7 +187,7 @@ class ChartEngine {
     }
   }
 
-  getThemeColors() {
+  getThemeColors(): { grid: string; text: string; bg: string } {
     const isLight = document.body.classList.contains('light-theme');
     return {
       grid: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
@@ -164,18 +196,24 @@ class ChartEngine {
     };
   }
 
-  resize() {
+  resize(): void {
+    if (!this.canvas.parentElement) return;
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const w = rect.width;
-    const h = this.canvas.height / (this.canvas.width / w);
+    const w = rect.width || this.canvas.width;
+    // Phase 6: HiDPI-aware backing store (design coordinates stay in CSS px)
+    const dpr = window.devicePixelRatio || 1;
+    const h = this.height ? this.canvas.height / (this.canvas.width / w) : w * 0.4;
+    this.canvas.width = Math.max(1, Math.round(w * dpr));
+    this.canvas.height = Math.max(1, Math.round(h * dpr));
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
-    this.width = this.canvas.width;
-    this.height = this.canvas.height;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.width = w;
+    this.height = h;
     this.draw();
   }
 
-  getDrawArea() {
+  getDrawArea(): { x: number; y: number; w: number; h: number } {
     const p = this.options.padding;
     return {
       x: p.left, y: p.top,
@@ -184,7 +222,7 @@ class ChartEngine {
     };
   }
 
-  drawGrid(da) {
+  drawGrid(da: { x: number; y: number; w: number; h: number }): void {
     const ctx = this.ctx;
     const colors = this.getThemeColors();
     const opts = this.options;
@@ -203,7 +241,7 @@ class ChartEngine {
 
     ctx.setLineDash([]);
 
-    // ── Y-axis labels (smaller font, more compact spacing) ──
+    // ── Y-axis labels ──
     ctx.fillStyle = colors.text;
     ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'right';
@@ -213,12 +251,11 @@ class ChartEngine {
     for (let i = 0; i <= opts.yTicks; i++) {
       const val = opts.yMax - (yRange / opts.yTicks) * i;
       const y = da.y + (da.h / opts.yTicks) * i;
-      // Show fewer decimals for cleaner labels when values are whole
       const label = val % 1 === 0 ? val.toFixed(0) + opts.ySuffix : val.toFixed(1) + opts.ySuffix;
       ctx.fillText(label, da.x - 6, y);
     }
 
-    // ── X-axis time labels (smaller, positioned at bottom edge) ──
+    // ── X-axis time labels ──
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.font = '8px -apple-system, BlinkMacSystemFont, sans-serif';
@@ -226,7 +263,7 @@ class ChartEngine {
     ctx.fillText('← 60s', da.x + da.w * 0.18, da.y + da.h + 4);
     ctx.fillText('now →', da.x + da.w * 0.88, da.y + da.h + 4);
 
-    // ── Bottom border line to separate labels from chart ──
+    // ── Bottom border line ──
     ctx.strokeStyle = colors.grid;
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
@@ -236,7 +273,7 @@ class ChartEngine {
     ctx.stroke();
   }
 
-  drawLine(da, dataset) {
+  drawLine(da: { x: number; y: number; w: number; h: number }, dataset: ChartDataset): void {
     const ctx = this.ctx;
     const data = dataset.data;
     if (data.length < 2) return;
@@ -245,11 +282,11 @@ class ChartEngine {
     const yRange = Math.max(opts.yMax - opts.yMin, 0.01);
     const step = da.w / Math.max(data.length - 1, 1);
 
-    const points = [];
+    const points: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < data.length; i++) {
       if (data[i] === null || data[i] === undefined) continue;
       const x = da.x + da.w - (data.length - 1 - i) * step;
-      const ratio = (data[i] - opts.yMin) / yRange;
+      const ratio = (data[i]! - opts.yMin) / yRange;
       const y = da.y + da.h - Math.max(0, Math.min(1, ratio)) * da.h;
       points.push({ x, y });
     }
@@ -257,6 +294,8 @@ class ChartEngine {
     if (points.length < 2) return;
 
     const color = dataset.color || '#6366f1';
+    const tension = 0.3;
+    const clamp = (v: number) => Math.max(da.y, Math.min(da.y + da.h, v));
 
     // Glow behind line
     ctx.save();
@@ -268,15 +307,11 @@ class ChartEngine {
         const p1 = points[i];
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
-        const tension = 0.3;
-        // Clamp control point Y values to prevent overshoot above 100% or below 0%
-        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
-        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          cp1y,
+          clamp(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          cp2y,
+          clamp(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -297,19 +332,16 @@ class ChartEngine {
     ctx.moveTo(points[0].x, da.y + da.h);
 
     if (opts.smooth && points.length > 2) {
-      const tension = 0.3;
       for (let i = 0; i < points.length - 1; i++) {
         const p0 = points[Math.max(i - 1, 0)];
         const p1 = points[i];
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
-        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
-        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          cp1y,
+          clamp(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          cp2y,
+          clamp(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -333,19 +365,16 @@ class ChartEngine {
     ctx.beginPath();
     if (opts.smooth && points.length > 2) {
       ctx.moveTo(points[0].x, points[0].y);
-      const tension = 0.3;
       for (let i = 0; i < points.length - 1; i++) {
         const p0 = points[Math.max(i - 1, 0)];
         const p1 = points[i];
         const p2 = points[Math.min(i + 1, points.length - 1)];
         const p3 = points[Math.min(i + 2, points.length - 1)];
-        const cp1y = Math.max(da.y, Math.min(da.y + da.h, p1.y + (p2.y - p0.y) * tension));
-        const cp2y = Math.max(da.y, Math.min(da.y + da.h, p2.y - (p3.y - p1.y) * tension));
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          cp1y,
+          clamp(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          cp2y,
+          clamp(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -399,7 +428,7 @@ class ChartEngine {
     ctx.restore();
   }
 
-  draw() {
+  draw(): void {
     const ctx = this.ctx;
     const colors = this.getThemeColors();
     const opts = this.options;
@@ -415,7 +444,11 @@ class ChartEngine {
     bgGrad.addColorStop(1, colors.bg);
     ctx.fillStyle = bgGrad;
     ctx.beginPath();
-    ctx.roundRect(da.x - 8, da.y - 8, da.w + 16, da.h + 16, 4);
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(da.x - 8, da.y - 8, da.w + 16, da.h + 16, 4);
+    } else {
+      ctx.rect(da.x - 8, da.y - 8, da.w + 16, da.h + 16);
+    }
     ctx.fill();
 
     // ── Subtle horizontal guide label at 50% ──
@@ -438,26 +471,16 @@ class ChartEngine {
       }
     });
 
-    // ── "Collecting data..." placeholder when less than 2 data points ──
+    // ── "Collecting data..." placeholder ──
     if (!hasData) {
       const hasPoints = opts.datasets.some(ds => ds.data && ds.data.length === 1);
-      if (hasPoints) {
-        ctx.save();
-        ctx.fillStyle = hexToRgba(colors.text, 0.35);
-        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Collecting data…', da.x + da.w / 2, da.y + da.h / 2);
-        ctx.restore();
-      } else {
-        ctx.save();
-        ctx.fillStyle = hexToRgba(colors.text, 0.2);
-        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Waiting for data…', da.x + da.w / 2, da.y + da.h / 2);
-        ctx.restore();
-      }
+      ctx.save();
+      ctx.fillStyle = hexToRgba(colors.text, hasPoints ? 0.35 : 0.2);
+      ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(hasPoints ? 'Collecting data…' : 'Waiting for data…', da.x + da.w / 2, da.y + da.h / 2);
+      ctx.restore();
     }
 
     // Draw hover crosshair
@@ -465,7 +488,6 @@ class ChartEngine {
       const p = this._hoveredPoint;
       ctx.save();
 
-      // Vertical crosshair
       ctx.beginPath();
       ctx.moveTo(p.x, da.y);
       ctx.lineTo(p.x, da.y + da.h);
@@ -475,7 +497,6 @@ class ChartEngine {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Horizontal crosshair
       ctx.beginPath();
       ctx.moveTo(da.x, p.y);
       ctx.lineTo(da.x + da.w, p.y);
@@ -485,7 +506,6 @@ class ChartEngine {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Highlight ring
       ctx.beginPath();
       ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
       ctx.fillStyle = hexToRgba(p.color, 0.2);
@@ -503,7 +523,7 @@ class ChartEngine {
     }
   }
 
-  _getAccentColor() {
+  _getAccentColor(): string {
     const ds = this.options.datasets;
     if (ds && ds.length > 0 && ds[0].color) {
       return hexToRgba(ds[0].color, 0.04);
@@ -511,12 +531,12 @@ class ChartEngine {
     return 'transparent';
   }
 
-  updateDatasets(datasets) {
+  updateDatasets(datasets: ChartDataset[]): void {
     this.options.datasets = datasets;
     this.draw();
   }
 
-  destroy() {
+  destroy(): void {
     window.removeEventListener('resize', this.resizeHandler);
     this.canvas.removeEventListener('mousemove', this._boundMouseMove);
     this.canvas.removeEventListener('mouseleave', this._boundMouseLeave);
@@ -528,16 +548,29 @@ class ChartEngine {
 // 🍩 DONUT CHART (Memory Distribution)
 // ──────────────────────────────────────────────
 
+export interface DonutSlice {
+  value: number;
+  color: string;
+}
+
 class DonutChart {
-  constructor(canvasId) {
-    this.canvas = document.getElementById(canvasId);
-    if (!this.canvas) return;
-    this.ctx = this.canvas.getContext('2d');
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
+  private radius = 80;
+  private lineWidth = 20;
+  /** Last drawn slices — kept public for redraw-on-resize (app.ts). */
+  _lastSlices: DonutSlice[] | null = null;
+
+  constructor(canvasId: string) {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
+    if (!canvas) return;
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d')!;
     this.radius = 80;
     this.lineWidth = 20;
   }
 
-  draw(slices) {
+  draw(slices: DonutSlice[]): void {
     this._lastSlices = slices;
     const ctx = this.ctx;
     const w = this.canvas.width;
@@ -574,7 +607,7 @@ class DonutChart {
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      // Inner highlight arc (only for sizable segments)
+      // Inner highlight arc
       if (angle > 0.1) {
         ctx.beginPath();
         ctx.arc(cx, cy, this.radius - 2, startAngle, endAngle);
@@ -586,7 +619,7 @@ class DonutChart {
       startAngle = endAngle;
     });
 
-    // Background track ring (behind slices to show empty space)
+    // Background track ring
     ctx.beginPath();
     ctx.arc(cx, cy, this.radius, startAngle, -Math.PI / 2);
     ctx.strokeStyle = this.getTrackColor();
@@ -596,33 +629,30 @@ class DonutChart {
     ctx.setLineDash([]);
   }
 
-  getTrackColor() {
+  getTrackColor(): string {
     return document.body.classList.contains('light-theme')
       ? 'rgba(0, 0, 0, 0.05)'
       : 'rgba(255, 255, 255, 0.05)';
   }
-
 }
 
 // ──────────────────────────────────────────────
 // 📊 CHART DATA HISTORY & INITIALIZATION
 // ──────────────────────────────────────────────
 
-const MAX_HISTORY = 60;
+const cpuHistory: number[] = [0];
+const memHistory: number[] = [0];
+const vmHistory: number[] = [0];
 
-const cpuHistory = [0];
-const memHistory = [0];
-const vmHistory = [0];
+export let cpuLineChart: ChartEngine | null = null;
+export let memLineChart: ChartEngine | null = null;
+export let vmLineChart: ChartEngine | null = null;
+export let donutChart: DonutChart | null = null;
+export let cpuRingGauge: RingGauge | null = null;
+export let memRingGauge: RingGauge | null = null;
+export let vmRingGauge: RingGauge | null = null;
 
-export let cpuLineChart = null;
-export let memLineChart = null;
-export let vmLineChart = null;
-export let donutChart = null;
-export let cpuRingGauge = null;
-export let memRingGauge = null;
-export let vmRingGauge = null;
-
-export function initCharts() {
+export function initCharts(): void {
   cpuRingGauge = new RingGauge('cpuRingGauge');
   memRingGauge = new RingGauge('memRingGauge');
   vmRingGauge = new RingGauge('vmRingGauge', {
@@ -661,7 +691,7 @@ export function initCharts() {
   donutChart = new DonutChart('donutChart');
 }
 
-export function updateCharts(info) {
+export function updateCharts(info: SystemInfo): void {
   const cpuLoadPercent = info.cpuUsage !== undefined ? info.cpuUsage : 0;
   cpuHistory.push(cpuLoadPercent);
   if (cpuHistory.length > MAX_HISTORY) cpuHistory.shift();

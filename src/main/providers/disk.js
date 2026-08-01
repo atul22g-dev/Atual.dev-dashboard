@@ -48,12 +48,16 @@ function parsePsDisks(stdout) {
 function parseDf(stdout, platform) {
   const disks = [];
   const lines = String(stdout).trim().split('\n').filter(l => l.trim());
+  // macOS runs `df -k` (blocks of 1024 bytes) → scale ×1024.
+  // Linux runs `df -B1 --output=source,size,used,avail,target` → sizes are
+  // ALREADY in bytes, so no scaling (the old code double-scaled Linux).
+  const scale = platform === 'darwin' ? 1024 : 1;
   for (const line of lines) {
     const parts = line.trim().split(/\s+/);
     if (parts.length >= 5) {
-      const total = parseInt(parts[1]) * 1024;
-      const used = parseInt(parts[2]) * 1024;
-      const free = parseInt(parts[3]) * 1024;
+      const total = parseInt(parts[1]) * scale;
+      const used = parseInt(parts[2]) * scale;
+      const free = parseInt(parts[3]) * scale;
       const mount = platform === 'darwin' ? parts[parts.length - 1] : parts[4];
       if (mount && total > 0) {
         disks.push({ mount, total, used, free });

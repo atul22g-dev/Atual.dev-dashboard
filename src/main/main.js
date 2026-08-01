@@ -23,12 +23,83 @@
    ============================================================ */
 
 // 📦 Import required modules
-const { app, BrowserWindow, nativeImage } = require('electron');
+const { app, BrowserWindow, nativeImage, Tray, Menu, globalShortcut, Notification } = require('electron');
 const fs = require('fs');
-const path = require('path');
 const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML } = require('./config');
 const { registerIpcHandlers } = require('./ipc');
 const { logError } = require('./logger');
+const { getPreferences, setPreferences } = require('./preferences');
+
+// ──────────────────────────────────────────────
+// 🪟 SINGLE-INSTANCE LOCK (must be acquired first)
+// ──────────────────────────────────────────────
+// Acquire BEFORE any whenReady handler is registered so a second launch can
+// never briefly create a window: on lock failure we quit immediately and let
+// the first instance handle the second-instance event.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    showMainWindow();
+  });
+}
+
+// ──────────────────────────────────────────────
+// 🔧 PHASE 8 — OS PREFERENCES (start-with-Windows, tray)
+// ──────────────────────────────────────────────
+// Applied once at startup and whenever the renderer changes them.
+let tray = null;
+let isQuitting = false;
+
+function applyOsPreferences(prefs) {
+  // Start with Windows (only meaningful on Windows; harmless elsewhere)
+  try {
+    app.setLoginItemSettings({ openAtLogin: !!prefs.startWithWindows });
+  } catch (e) {
+    logError('set-login-item', e);
+  }
+}
+
+function showMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  if (tray) return;
+  let icon = null;
+  try {
+    icon = nativeImage.createFromPath(ICON_PATH);
+  } catch (e) { /* fall back to empty tray icon */ }
+  tray = new Tray(icon || nativeImage.createEmpty());
+  tray.setToolTip('Atual.dev Dashboard');
+  const menu = Menu.buildFromTemplate([
+    { label: 'Show Dashboard', click: showMainWindow },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+  tray.setContextMenu(menu);
+  tray.on('click', showMainWindow);
+  tray.on('double-click', showMainWindow);
+}
+
+function notify(message, title = 'Atual.dev Dashboard') {
+  try {
+    if (!Notification.isSupported()) return;
+    new Notification({ title, body: message }).show();
+  } catch (e) {
+    logError('notification', e);
+  }
+}
 
 // ──────────────────────────────────────────────
 // 🛡️ CRASH GUARDS (Phase 3)
@@ -61,7 +132,7 @@ process.on('unhandledRejection', (reason) => {
 // The following require.resolve() calls let dead-code analysis tools (deslop)
 // discover the renderer module graph. At runtime they only resolve paths
 // without executing modules — the actual renderer loads via loadFile().
-require.resolve('../renderer/script/app.js');
+require.resolve('../renderer/script/app.ts');
 
 // ──────────────────────────────────────────────
 // 🪟 WINDOW SETUP
@@ -94,6 +165,16 @@ function createWindow() {
       contextIsolation: true,     // ✅ Keep webpage separate from Electron
       sandbox: true,              // 🛡️ Extra security layer
     },
+  });
+
+  // Phase 8 — minimize-to-tray: intercept the close button when enabled so
+  // the app keeps running in the tray instead of quitting.
+  mainWindow.on('close', (event) => {
+    if (!isQuitting && getPreferences().minimizeToTray) {
+      event.preventDefault();
+      mainWindow.hide();
+      notify('Atual.dev Dashboard is still running in the system tray.');
+    }
   });
 
   // 📄 Load the dashboard HTML file (Phase 4: Vite-built bundle)
@@ -136,7 +217,13 @@ app.commandLine.appendSwitch('disk-cache-size', '0');
 
 // 'whenReady' fires after Electron has finished starting up
 app.whenReady().then(() => {
+  const prefs = getPreferences();
+  applyOsPreferences(prefs);
   createWindow();
+  createTray();
+
+  // Phase 8 — native shortcut: Ctrl+Shift+D shows the dashboard from anywhere.
+  globalShortcut.register('CommandOrControl+Shift+D', showMainWindow);
 
   // macOS: Re-create window when dock icon clicked
   app.on('activate', () => {
@@ -147,12 +234,22 @@ app.whenReady().then(() => {
 
   // ─── IPC Handlers ───────────────────────
   // All channels are registered here in one place (see ipc.js).
-  registerIpcHandlers(() => mainWindow);
+  registerIpcHandlers(() => mainWindow, { getPreferences, setPreferences, showMainWindow, applyOsPreferences, notify });
 });
 
-// Quit when all windows are closed (except on macOS)
+// Quit when all windows are closed (except on macOS, and unless the user
+// chose minimize-to-tray — in that case the app keeps running in the tray).
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && !getPreferences().minimizeToTray) {
     app.quit();
   }
 });
+
+// Phase 8 — release tray + shortcuts on a clean quit
+app.on('before-quit', () => {
+  isQuitting = true;
+  globalShortcut.unregisterAll();
+  if (tray) { tray.destroy(); tray = null; }
+});
+
+

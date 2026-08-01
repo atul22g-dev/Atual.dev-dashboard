@@ -1,15 +1,16 @@
 /* ============================================================
-   📦 DEVELOPER SECTION - Package Manager (npm/pip)
+   📦 DEVELOPER SECTION - Package Manager (npm/pip) (Phase 4 TS)
    ============================================================ */
 
 import { $, showSectionError, clearSectionError } from '../utils.js';
 import { isPermissionError } from '../format.js';
+import type { PackageActionResult, PackageInfo } from '../../../shared/ipc/contracts.js';
 
 /**
  * Set an element's text with query matches wrapped in <strong class="pkg-highlight">
  * using DOM nodes only (no innerHTML — textContent auto-escapes).
  */
-function setHighlighted(el, text, query) {
+function setHighlighted(el: HTMLElement, text: string, query?: string): void {
   if (!query || !text) { el.textContent = text; return; }
   const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex special chars
   const regex = new RegExp(`(${q})`, 'gi');
@@ -27,23 +28,23 @@ function setHighlighted(el, text, query) {
 }
 
 // Static SVG icon markup — built via DOMParser (not innerHTML), so no HTML sink.
-const ICONS = {
+const ICONS: Record<string, string> = {
   pkg: '<svg class="pkg-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/><line x1="9" y1="3" x2="9" y2="17"/></svg>',
   popup: '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/><line x1="9" y1="3" x2="9" y2="17"/></svg>',
   update: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1 4 1 10 7 10"/><polyline points="19 16 19 10 13 10"/><path d="M3.5 13.5A8 8 0 0 0 16.5 7.5"/><path d="M16.5 6.5A8 8 0 0 0 3.5 12.5"/></svg>',
   delete: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 17 6"/><path d="M8 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M5 6l1 10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-10"/></svg>',
 };
-function svgIcon(name) {
-  return new DOMParser().parseFromString(ICONS[name], 'image/svg+xml').documentElement;
+function svgIcon(name: string): SVGElement {
+  return new DOMParser().parseFromString(ICONS[name], 'image/svg+xml').documentElement as unknown as SVGElement;
 }
 
-let currentPkgType = 'npm';
-let npmPackages = [];
-let pipPackages = [];
+let currentPkgType: 'npm' | 'pip' = 'npm';
+let npmPackages: PackageInfo[] = [];
+let pipPackages: PackageInfo[] = [];
 let isLoadingPackages = false;
-let lastFailedAction = null;
+let lastFailedAction: { action: string; type: string; name: string } | null = null;
 
-async function loadPackages() {
+async function loadPackages(): Promise<void> {
   if (isLoadingPackages) return;
   isLoadingPackages = true;
   try {
@@ -51,7 +52,7 @@ async function loadPackages() {
     if (body) body.innerHTML = '<div class="pkg-loading">Loading packages...</div>';
     hideStatus();
 
-    let packages = [];
+    let packages: PackageInfo[] = [];
     if (currentPkgType === 'npm') {
       packages = await window.electronAPI.getNpmPackages();
       npmPackages = packages;
@@ -71,7 +72,7 @@ async function loadPackages() {
   }
 }
 
-function renderPackages(packages, filter) {
+function renderPackages(packages: PackageInfo[], filter: string): void {
   const body = document.getElementById('pkgListBody');
   if (!body) return;
 
@@ -83,7 +84,7 @@ function renderPackages(packages, filter) {
     body.innerHTML = '<div class="pkg-loading">No packages found</div>';
     $('pkgTotalCount').textContent = '0';
     $('pkgShowingCount').textContent = '0';
-    updatePackageCounts(packages, 0);
+    updatePackageCounts(packages);
     return;
   }
 
@@ -94,7 +95,7 @@ function renderPackages(packages, filter) {
   if (filtered.length === 0) {
     body.innerHTML = '<div class="pkg-loading">No packages match your search</div>';
     $('pkgShowingCount').textContent = '0';
-    updatePackageCounts(packages, 0);
+    updatePackageCounts(packages);
     return;
   }
 
@@ -154,18 +155,18 @@ function renderPackages(packages, filter) {
     body.appendChild(row);
   });
 
-  $('pkgTotalCount').textContent = packages.length;
-  $('pkgShowingCount').textContent = filtered.length;
-  updatePackageCounts(packages, filtered.length);
+  $('pkgTotalCount').textContent = String(packages.length);
+  $('pkgShowingCount').textContent = String(filtered.length);
+  updatePackageCounts(packages);
 }
 
 // ──────────────────────────────────────────────
 // 📋 PACKAGE DETAILS POPUP
 // ──────────────────────────────────────────────
 
-let _popupOverlay = null;
+let _popupOverlay: HTMLElement | null = null;
 
-function getPopupOverlay() {
+function getPopupOverlay(): HTMLElement {
   if (!_popupOverlay) {
     _popupOverlay = document.createElement('div');
     _popupOverlay.className = 'pkg-popup-overlay';
@@ -178,11 +179,11 @@ function getPopupOverlay() {
   return _popupOverlay;
 }
 
-function _onPopupKeydown(e) {
+function _onPopupKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape') hidePackagePopup();
 }
 
-function showPackagePopup(pkgName) {
+function showPackagePopup(pkgName: string): void {
   // Find the package data from cache
   const cache = currentPkgType === 'npm' ? npmPackages : pipPackages;
   const pkg = cache.find(p => p.name === pkgName);
@@ -232,7 +233,7 @@ function showPackagePopup(pkgName) {
 
   const grid = document.createElement('div');
   grid.className = 'pkg-popup-detail-grid';
-  const detailItem = (label, value, valueStyle) => {
+  const detailItem = (label: string, value: string, valueStyle?: string): HTMLElement => {
     const item = document.createElement('div');
     item.className = 'pkg-popup-detail-item';
     const l = document.createElement('span');
@@ -254,7 +255,7 @@ function showPackagePopup(pkgName) {
   // Footer
   const footer = document.createElement('div');
   footer.className = 'pkg-popup-footer';
-  const makeFooterBtn = (action, label) => {
+  const makeFooterBtn = (action: string, label: string): HTMLButtonElement => {
     const b = document.createElement('button');
     b.className = `pkg-popup-action-btn ${action}`;
     b.dataset.action = action === 'update' ? 'updateFromPopup' : 'deleteFromPopup';
@@ -271,10 +272,10 @@ function showPackagePopup(pkgName) {
   overlay.classList.add('visible');
 
   // Close button (already built above with id pkgPopupClose)
-  if (closeBtn) closeBtn.addEventListener('click', hidePackagePopup);
+  closeBtn.addEventListener('click', hidePackagePopup);
 
   // Action buttons inside popup
-  overlay.querySelectorAll('.pkg-popup-action-btn').forEach(btn => {
+  overlay.querySelectorAll<HTMLElement>('.pkg-popup-action-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action === 'updateFromPopup' ? 'update' : 'delete';
       const name = btn.dataset.pkg;
@@ -286,46 +287,48 @@ function showPackagePopup(pkgName) {
   });
 }
 
-function hidePackagePopup() {
+function hidePackagePopup(): void {
   if (_popupOverlay) {
     _popupOverlay.classList.remove('visible');
   }
 }
 
-function updatePackageCounts(packages, showing) {
-  if (currentPkgType === 'npm') $('npmCount').textContent = packages.length;
-  else $('pipCount').textContent = packages.length;
+function updatePackageCounts(packages: PackageInfo[]): void {
+  if (currentPkgType === 'npm') $('npmCount').textContent = String(packages.length);
+  else $('pipCount').textContent = String(packages.length);
 }
 
-function switchPackageTab(type) {
+function switchPackageTab(type: 'npm' | 'pip'): void {
   if (type === currentPkgType) return;
   currentPkgType = type;
   document.querySelectorAll('.pkg-tab').forEach(t => t.classList.remove('active'));
   const tabBtn = type === 'npm' ? $('pkgTabNpm') : $('pkgTabPip');
   if (tabBtn) tabBtn.classList.add('active');
   $('pkgSummaryType').textContent = type;
-  
+
   // Show/hide the correct install bar
   const barNpm = $('pkgInstallBarNpm');
   const barPip = $('pkgInstallBarPip');
   if (barNpm) barNpm.style.display = type === 'npm' ? '' : 'none';
   if (barPip) barPip.style.display = type === 'pip' ? '' : 'none';
-  
+
   // Clear suggestions when switching tabs
   const sugNpm = $('pkgInstallSuggestionsNpm');
   const sugPip = $('pkgInstallSuggestionsPip');
   if (sugNpm) sugNpm.classList.remove('visible');
   if (sugPip) sugPip.classList.remove('visible');
-  
-  const searchInput = $('pkgSearch');
+
+  const searchInput = $('pkgSearch') as HTMLInputElement;
   if (searchInput) searchInput.value = '';
   const cached = type === 'npm' ? npmPackages : pipPackages;
   if (cached.length > 0) renderPackages(cached, '');
   else loadPackages();
 }
 
-function showStatus(message, isError = false) {
-  const status = $('pkgStatus');
+type StatusEl = HTMLElement & { _hideTimer?: number };
+
+function showStatus(message: string, isError = false): void {
+  const status = $('pkgStatus') as StatusEl;
   if (!status) return;
   status.textContent = message;
   status.className = 'pkg-status ' + (isError ? 'error' : 'success');
@@ -334,12 +337,12 @@ function showStatus(message, isError = false) {
   status._hideTimer = setTimeout(() => { status.style.display = 'none'; }, 5000);
 }
 
-function hideStatus() {
-  const status = $('pkgStatus');
+function hideStatus(): void {
+  const status = $('pkgStatus') as StatusEl;
   if (status) { status.style.display = 'none'; clearTimeout(status._hideTimer); }
 }
 
-function showActionLog(message) {
+function showActionLog(message: string): void {
   const panel = $('pkgLogPanel');
   const content = $('pkgLogContent');
   if (!panel || !content) return;
@@ -356,21 +359,21 @@ function showActionLog(message) {
  * validates them and builds the actual command; the renderer can never request
  * an arbitrary elevated command string.
  */
-async function retryWithElevation(action, type, name) {
+async function retryWithElevation(action: string, type: string, name: string): Promise<PackageActionResult> {
   try {
     return await window.electronAPI.elevatePackage(action, type, name);
   } catch (err) {
-    return { success: false, message: err.message || 'Elevation failed' };
+    return { success: false, message: err instanceof Error ? err.message : 'Elevation failed' };
   }
 }
 
-async function handlePackageAction(action, pkgName) {
+async function handlePackageAction(action: string, pkgName: string): Promise<void> {
   const body = $('pkgListBody');
   const rows = body?.querySelectorAll('.pkg-row');
-  let targetRow = null;
+  let targetRow: HTMLElement | null = null;
   if (rows) {
     for (const row of rows) {
-      if (row.dataset.pkgName === pkgName) { targetRow = row; break; }
+      if ((row as HTMLElement).dataset.pkgName === pkgName) { targetRow = row as HTMLElement; break; }
     }
   }
   if (targetRow) targetRow.classList.add('pkg-row-loading');
@@ -384,10 +387,10 @@ async function handlePackageAction(action, pkgName) {
       setTimeout(() => loadPackages(), 1500);
       return;
     }
-    
+
     // Check if the failure is a permission error (shared helper, format.js)
     const isPermError = isPermissionError(result.message);
-    
+
     if (isPermError) {
       // Auto-retry with elevated privileges
       showStatus(`Permission denied. Retrying with admin privileges...`);
@@ -410,19 +413,19 @@ async function handlePackageAction(action, pkgName) {
         return;
       }
     }
-    
+
     // Non-permission error
     showStatus(`Failed: ${result.message}`, true);
     showActionLog(result.message || 'Unknown error');
     lastFailedAction = { action, type: currentPkgType, name: pkgName };
   } catch (err) {
-    showStatus(`Error: ${err.message}`, true);
+    showStatus(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
   } finally {
     if (targetRow) targetRow.classList.remove('pkg-row-loading');
   }
 }
 
-async function checkAdminAndElevation() {
+async function checkAdminAndElevation(): Promise<void> {
   try {
     const bar = $('pkgAdminBar');
     const adminText = $('pkgAdminText');
@@ -443,7 +446,7 @@ async function checkAdminAndElevation() {
     if (npmNeedsAdmin) {
       adminText.textContent = '⚠️ Some commands may need administrator privileges';
       indicator.className = 'pkg-admin-indicator warning';
-      if (note) note.textContent = 'npm/pip global directory requires admin rights. Click \"Elevate\" after a failed action to retry with admin privileges.';
+      if (note) note.textContent = 'npm/pip global directory requires admin rights. Click "Elevate" after a failed action to retry with admin privileges.';
       // Only show Elevate button if there's a failed action to retry
       if (elevateBtn) elevateBtn.style.display = lastFailedAction ? 'flex' : 'none';
     } else {
@@ -459,7 +462,7 @@ async function checkAdminAndElevation() {
   }
 }
 
-function showAdminElevationHint(action, pkgName) {
+function showAdminElevationHint(action: string, pkgName: string): void {
   const bar = $('pkgAdminBar');
   const adminText = $('pkgAdminText');
   const indicator = $('pkgAdminIndicator');
@@ -475,36 +478,36 @@ function showAdminElevationHint(action, pkgName) {
 // 🔍 PACKAGE INSTALL WITH AUTOCOMPLETE
 // ──────────────────────────────────────────────
 
-let _searchTimers = { npm: null, pip: null };
+const _searchTimers: { npm: number | null; pip: number | null } = { npm: null, pip: null };
 
 /**
  * Get the input element for the currently active tab
  */
-function getInstallInput() {
+function getInstallInput(): HTMLElement | null {
   return currentPkgType === 'npm' ? $('pkgInstallInputNpm') : $('pkgInstallInputPip');
 }
 
 /**
  * Get the suggestions container for the currently active tab
  */
-function getSuggestionsContainer() {
+function getSuggestionsContainer(): HTMLElement | null {
   return currentPkgType === 'npm' ? $('pkgInstallSuggestionsNpm') : $('pkgInstallSuggestionsPip');
 }
 
 /**
  * Get the install button for the currently active tab
  */
-function getInstallBtn() {
+function getInstallBtn(): HTMLElement | null {
   return currentPkgType === 'npm' ? $('pkgInstallBtnNpm') : $('pkgInstallBtnPip');
 }
 
 /**
  * Show suggestions dropdown with package search results
  */
-function showSuggestions(results) {
+function showSuggestions(results: PackageInfo[]): void {
   const container = getSuggestionsContainer();
   if (!container) return;
-  
+
   if (!results || results.length === 0) {
     container.classList.remove('visible');
     return;
@@ -540,7 +543,7 @@ function showSuggestions(results) {
     item.addEventListener('click', () => {
       const input = getInstallInput();
       if (input) {
-        input.value = pkg.name;
+        (input as HTMLInputElement).value = pkg.name;
         container.classList.remove('visible');
         handleInstallPackage();
       }
@@ -548,37 +551,37 @@ function showSuggestions(results) {
 
     container.appendChild(item);
   });
-  
+
   container.classList.add('visible');
 }
 
 /**
  * Debounced search for packages as user types
  */
-function onInstallInput(e) {
-  const input = e.target;
+function onInstallInput(e: Event): void {
+  const input = e.target as HTMLInputElement;
   const query = input.value.trim();
   const type = input.id === 'pkgInstallInputNpm' ? 'npm' : 'pip';
-  
+
   // Clear previous timer
   if (_searchTimers[type]) {
     clearTimeout(_searchTimers[type]);
     _searchTimers[type] = null;
   }
-  
+
   // Hide suggestions if query is too short
   const container = type === 'npm' ? $('pkgInstallSuggestionsNpm') : $('pkgInstallSuggestionsPip');
   if (query.length < 2) {
     if (container) container.classList.remove('visible');
     return;
   }
-  
+
   // Show loading state
   if (container) {
     container.innerHTML = '<div class="pkg-suggestion-loading">Searching...</div>';
     container.classList.add('visible');
   }
-  
+
   // Debounce search
   _searchTimers[type] = setTimeout(async () => {
     try {
@@ -602,11 +605,11 @@ document.addEventListener('click', (e) => {
   const containerPip = $('pkgInstallSuggestionsPip');
   const barNpm = $('pkgInstallBarNpm');
   const barPip = $('pkgInstallBarPip');
-  
-  if (containerNpm && !barNpm?.contains(e.target)) {
+
+  if (containerNpm && !barNpm?.contains(e.target as Node)) {
     containerNpm.classList.remove('visible');
   }
-  if (containerPip && !barPip?.contains(e.target)) {
+  if (containerPip && !barPip?.contains(e.target as Node)) {
     containerPip.classList.remove('visible');
   }
 });
@@ -614,23 +617,22 @@ document.addEventListener('click', (e) => {
 /**
  * Install a package with the current tab's input
  */
-async function handleInstallPackage() {
-  const input = getInstallInput();
+async function handleInstallPackage(): Promise<void> {
+  const input = getInstallInput() as HTMLInputElement | null;
   if (!input) return;
   const pkgName = input.value.trim();
   if (!pkgName) { showStatus('Please enter a package name to install', true); input.focus(); return; }
-  
+
   const btn = getInstallBtn();
-  const originalText = btn?.textContent || 'Install';
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="pkg-install-spinner"></span> Installing...'; }
+  if (btn) { (btn as HTMLButtonElement).disabled = true; btn.innerHTML = '<span class="pkg-install-spinner"></span> Installing...'; }
   input.disabled = true;
   hideStatus();
   showStatus(`Installing ${pkgName}...`);
-  
+
   // Hide suggestions
   const container = getSuggestionsContainer();
   if (container) container.classList.remove('visible');
-  
+
   try {
     const result = await window.electronAPI.installPackage(currentPkgType, pkgName);
     if (result.success) {
@@ -641,10 +643,10 @@ async function handleInstallPackage() {
       setTimeout(() => loadPackages(), 1500);
       return;
     }
-    
+
     // Check if the failure is a permission error (shared helper, format.js)
     const isPermError = isPermissionError(result.message);
-    
+
     if (isPermError) {
       // Auto-retry with elevated privileges
       showStatus(`Permission denied. Retrying with admin privileges...`);
@@ -667,14 +669,14 @@ async function handleInstallPackage() {
         return;
       }
     }
-    
+
     // Non-permission error
     showStatus(`Failed to install ${pkgName}: ${result.message}`, true);
     showActionLog(result.message || 'Unknown error');
     lastFailedAction = { action: 'install', type: currentPkgType, name: pkgName };
-  } catch (err) { showStatus(`Error: ${err.message}`, true); }
+  } catch (err) { showStatus(`Error: ${err instanceof Error ? err.message : String(err)}`, true); }
   finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3v14M3 10h14"/></svg> Install'; }
+    if (btn) { (btn as HTMLButtonElement).disabled = false; btn.innerHTML = '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3v14M3 10h14"/></svg> Install'; }
     input.disabled = false; input.focus();
   }
 }
@@ -687,7 +689,7 @@ async function handleInstallPackage() {
 // never on the global refresh cycle.
 
 /** One-time setup: wire package DOM listeners + load data + check admin. */
-export function init() {
+export function init(): void {
   $('pkgElevateBtn')?.addEventListener('click', retryElevationFromBar);
   $('pkgTabNpm')?.addEventListener('click', () => switchPackageTab('npm'));
   $('pkgTabPip')?.addEventListener('click', () => switchPackageTab('pip'));
@@ -696,7 +698,7 @@ export function init() {
   if (pkgSearch) {
     pkgSearch.addEventListener('input', (e) => {
       const cache = currentPkgType === 'npm' ? npmPackages : pipPackages;
-      renderPackages(cache, e.target.value);
+      renderPackages(cache, (e.target as HTMLInputElement).value);
     });
   }
 
@@ -720,14 +722,14 @@ export function init() {
 
   document.getElementById('pkgListBody')?.addEventListener('click', (e) => {
     // Click on package name → show details popup
-    const nameEl = e.target.closest('.pkg-name');
+    const nameEl = (e.target as HTMLElement).closest('.pkg-name');
     if (nameEl) {
-      const row = nameEl.closest('.pkg-row');
+      const row = nameEl.closest('.pkg-row') as HTMLElement | null;
       const pkgName = row?.dataset?.pkgName;
       if (pkgName) { showPackagePopup(pkgName); return; }
     }
     // Click on action button → update/delete
-    const btn = e.target.closest('.pkg-action-btn');
+    const btn = (e.target as HTMLElement).closest('.pkg-action-btn') as HTMLElement | null;
     if (!btn) return;
     const action = btn.dataset.action;
     const pkgName = btn.dataset.pkg;
@@ -740,17 +742,17 @@ export function init() {
 }
 
 /** Developer data is loaded on demand (init / refresh button), never on the refresh cycle. */
-export function update() {
+export function update(): void {
   // no-op — packages are lazy-loaded
 }
 
 /** Release debounce timers + popup listeners owned by this section. */
-export function destroy() {
-  clearTimeout(_searchTimers.npm);
-  clearTimeout(_searchTimers.pip);
+export function destroy(): void {
+  if (_searchTimers.npm) clearTimeout(_searchTimers.npm);
+  if (_searchTimers.pip) clearTimeout(_searchTimers.pip);
   _searchTimers.npm = null;
   _searchTimers.pip = null;
-  const status = $('pkgStatus');
+  const status = $('pkgStatus') as StatusEl;
   if (status) clearTimeout(status._hideTimer);
   if (_popupOverlay) {
     document.removeEventListener('keydown', _onPopupKeydown);
@@ -763,12 +765,12 @@ export function destroy() {
  * Retry the last failed package action with elevated (admin) privileges.
  * (Moved from app.js into the section in Phase 2.)
  */
-async function retryElevationFromBar() {
+async function retryElevationFromBar(): Promise<void> {
   if (!lastFailedAction) {
     $('pkgAdminText').textContent = '⚠️ No failed action to retry. Try installing/updating a package first.';
     return;
   }
-  const btn = $('pkgElevateBtn');
+  const btn = $('pkgElevateBtn') as HTMLButtonElement;
   btn.disabled = true;
   const originalText = btn.innerHTML;
   btn.innerHTML = '<span class="pkg-install-spinner"></span> Elevating...';
@@ -790,6 +792,6 @@ async function retryElevationFromBar() {
       $('pkgAdminIndicator').className = 'pkg-admin-indicator warning';
       showActionLog(result.message || 'Unknown error');
     }
-  } catch (err) { $('pkgAdminText').textContent = '⚠️ Elevation failed: ' + err.message; }
+  } catch (err) { $('pkgAdminText').textContent = '⚠️ Elevation failed: ' + (err instanceof Error ? err.message : String(err)); }
   finally { btn.disabled = false; btn.innerHTML = originalText; }
 }

@@ -68,8 +68,7 @@ async function getCpuTemperature() {
     }
 
     if (platform === 'darwin') {
-      // macOS: pmset doesn't give actual temp easily
-      await runCommand('pmset -g therm 2>/dev/null', { timeout: 3000 });
+      // macOS: no reliable CPU temperature source — report unavailable.
       return -1;
     }
 
