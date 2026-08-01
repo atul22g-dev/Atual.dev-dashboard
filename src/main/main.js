@@ -20,6 +20,13 @@ const os = require('os');             // Operating system info (CPU, memory, etc
 const { exec } = require('child_process'); // Run system commands (disk, processes)
 const https = require('https');       // For npm registry API calls
 const fs = require('fs');             // File system (for file birthtime / registry hive dates)
+// 🛡️ Phase 1 — every renderer-supplied value passes through these validators
+// before it can reach a shell command or registry call.
+const {
+  validatePackageAction,
+  validatePackageRequest,
+  validateSearchQuery,
+} = require('./validators');
 
 // ── Static analysis entry markers ──
 // The following require.resolve() calls let dead-code analysis tools (deslop)
@@ -773,7 +780,7 @@ function getBatteryInfo() {
       } else if (platform === 'darwin') {
         // macOS: Try pmset for battery info
         exec('pmset -g batt 2>/dev/null',
-          { timeout: 3000 },
+          { timeout: 3000, maxBuffer: 1024 * 1024 },
           (error, stdout) => {
             if (!error && stdout) {
               try {
@@ -798,7 +805,7 @@ function getBatteryInfo() {
       } else if (platform === 'linux') {
         // Linux: Try reading power supply info from sysfs
         exec('cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || cat /sys/class/power_supply/BAT1/capacity 2>/dev/null',
-          { timeout: 3000 },
+          { timeout: 3000, maxBuffer: 1024 * 1024 },
           (error, stdout) => {
             if (!error && stdout) {
               try {
@@ -806,7 +813,7 @@ function getBatteryInfo() {
                 if (!isNaN(pct) && pct >= 0) {
                   // Check charging status
                   exec('cat /sys/class/power_supply/BAT0/status 2>/dev/null || cat /sys/class/power_supply/BAT1/status 2>/dev/null',
-                    { timeout: 2000 },
+                    { timeout: 2000, maxBuffer: 1024 * 1024 },
                     (statusErr, statusOut) => {
                       const isCharging = statusOut && statusOut.trim() === 'Charging';
                       const onAC = isCharging || (statusOut && statusOut.trim() === 'Full');
@@ -922,7 +929,7 @@ function getBatteryDetails() {
       if (pending === 0) { resolve({}); return; }
       
       for (const field of fields) {
-        exec(`cat ${batterySys}/${field} 2>/dev/null`, { timeout: 2000 }, (err, out) => {
+        exec(`cat ${batterySys}/${field} 2>/dev/null`, { timeout: 2000, maxBuffer: 1024 * 1024 }, (err, out) => {
           if (!err && out) {
             details[field] = out.trim();
           }
@@ -996,13 +1003,13 @@ function getCpuTemperature() {
       });
     } else if (platform === 'darwin') {
       // macOS: pmset doesn't give actual temp easily
-      exec("pmset -g therm 2>/dev/null", { timeout: 3000 }, () => {
+      exec("pmset -g therm 2>/dev/null", { timeout: 3000, maxBuffer: 1024 * 1024 }, () => {
         resolve(-1);
       });
     } else {
       // Linux: Read from thermal zone sysfs
       exec('cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -5',
-        { timeout: 3000 }, (error, stdout) => {
+        { timeout: 3000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
           if (error || !stdout) { resolve(-1); return; }
           try {
             const lines = stdout.trim().split('\n').filter(l => l.trim());
@@ -1067,7 +1074,7 @@ function getGpuTemperature() {
         }
         // Try lm-sensors for AMD GPUs
         exec('sensors 2>/dev/null | grep -i "edge\|junction\|gpu" | head -1 | grep -oP "\\+\\d+\\.\\d+°C" | head -1',
-          { timeout: 3000 }, (sensErr, sensOut) => {
+          { timeout: 3000, maxBuffer: 1024 * 1024 }, (sensErr, sensOut) => {
             if (!sensErr && sensOut) {
               const v = parseInt(sensOut.trim());
               if (v && v > 0 && v < 120) { resolve(v); return; }
@@ -1079,7 +1086,7 @@ function getGpuTemperature() {
     } else if (platform === 'darwin') {
       // macOS: Try system_profiler for GPU temperature (limited)
       exec('system_profiler SPDisplaysDataType 2>/dev/null | grep -i "temperature" | head -1',
-        { timeout: 3000 }, (err, out) => {
+        { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, out) => {
           if (!err && out) {
             const match = out.match(/(\d+)/);
             if (match) { const v = parseInt(match[1]); if (v > 0 && v < 120) { resolve(v); return; } }
@@ -1225,7 +1232,7 @@ function checkAdminStatus() {
 
     if (platform === 'win32') {
       // Windows: 'net session' only works for administrators
-      exec('net session', { timeout: 3000 }, (error) => {
+      exec('net session', { timeout: 3000, maxBuffer: 1024 * 1024 }, (error) => {
         resolve({ isAdmin: !error, platform });
       });
     } else {
@@ -1250,7 +1257,7 @@ function checkNpmNeedsAdmin() {
     const platform = os.platform();
     if (platform === 'win32') {
       // On Windows, npm global packages usually go to AppData (no admin needed)
-      exec('npm config get prefix', { timeout: 5000 }, (error, stdout) => {
+      exec('npm config get prefix', { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
         if (error) { resolve(true); return; } // Can't determine, assume needed
         const prefix = stdout.trim().toLowerCase();
         // If npm prefix is in Program Files, admin is needed
@@ -1259,7 +1266,7 @@ function checkNpmNeedsAdmin() {
       });
     } else {
       // macOS/Linux: default npm prefix /usr/local requires sudo
-      exec('npm config get prefix 2>/dev/null', { timeout: 5000 }, (error, stdout) => {
+      exec('npm config get prefix 2>/dev/null', { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
         if (error) { resolve(true); return; }
         const prefix = stdout.trim();
         const needsAdmin = prefix.startsWith('/usr') || prefix.startsWith('/opt');
@@ -1273,6 +1280,10 @@ function checkNpmNeedsAdmin() {
  * Run a command with elevated privileges
  * Shows OS-level elevation prompt (UAC on Windows, password prompt on macOS/Linux)
  * Returns { success, message }
+ *
+ * 🛡️ Phase 1 — this is INTERNAL ONLY. The renderer can never pass a command
+ * string; it only requests runPackageElevated(action, type, name) which
+ * validates and builds the command here from the whitelist.
  */
 function runCommandElevated(cmd, args) {
   return new Promise((resolve) => {
@@ -1324,6 +1335,28 @@ function runCommandElevated(cmd, args) {
 // ──────────────────────────────────────────────
 // 📦 PACKAGE MANAGER - npm & pip global packages
 // ──────────────────────────────────────────────
+
+/**
+ * 🛡️ Phase 1 — elevated package operation (replaces the generic
+ * renderer-controlled `run-elevated(cmd)` channel).
+ * Only whitelisted actions (install|update|delete) for whitelisted managers
+ * (npm|pip) with a validated package name can ever be elevated.
+ */
+function runPackageElevated(action, type, name) {
+  const actionResult = validatePackageAction(action);
+  if (!actionResult.ok) {
+    return Promise.resolve({ success: false, message: actionResult.error });
+  }
+  const valid = validatePackageRequest(type, name);
+  if (!valid.ok) {
+    return Promise.resolve({ success: false, message: valid.error });
+  }
+  const cmd = buildPackageCommand(actionResult.action, valid.type, valid.name);
+  if (!cmd) {
+    return Promise.resolve({ success: false, message: 'Unknown package type' });
+  }
+  return runCommandElevated(cmd, []);
+}
 
 /**
  * 📦 Get list of globally installed npm packages
@@ -1422,7 +1455,7 @@ function getVirtualMemory() {
       });
     } else if (platform === 'linux') {
       // Linux: Read swap from /proc/meminfo
-      exec('grep -E "^(SwapTotal|SwapFree):" /proc/meminfo 2>/dev/null', { timeout: 3000 }, (err, out) => {
+      exec('grep -E "^(SwapTotal|SwapFree):" /proc/meminfo 2>/dev/null', { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, out) => {
         if (!err && out) {
           const totalMatch = out.match(/SwapTotal:\s+(\d+)\s+kB/i);
           const freeMatch = out.match(/SwapFree:\s+(\d+)\s+kB/i);
@@ -1442,7 +1475,7 @@ function getVirtualMemory() {
       });
     } else if (platform === 'darwin') {
       // macOS: Get swap usage from sysctl
-      exec('sysctl vm.swapusage 2>/dev/null', { timeout: 3000 }, (err, out) => {
+      exec('sysctl vm.swapusage 2>/dev/null', { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, out) => {
         if (!err && out) {
           const totalMatch = out.match(/total\s*=\s*([\d.]+)\s*([KMGT]?)/i);
           const usedMatch = out.match(/used\s*=\s*([\d.]+)\s*([KMGT]?)/i);
@@ -1479,29 +1512,41 @@ function getVirtualMemory() {
  * ⬆️ Update a global package (npm or pip)
  * Works for both npm and Python packages
  */
+/**
+ * 🛡️ Build a package manager command from a WHITELISTED action + validated
+ * name. The renderer never supplies the command string — only (action, type,
+ * name), and those are validated before this is called.
+ * Returns the command (without output redirection) or null for unknown type.
+ */
+function buildPackageCommand(action, type, name) {
+  if (type === 'npm') {
+    if (action === 'install') return `npm install -g ${name}`;
+    if (action === 'update') return `npm install -g ${name}@latest`;
+    if (action === 'delete') return `npm uninstall -g ${name}`;
+    return null;
+  }
+  if (type === 'pip') {
+    const pipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
+    if (action === 'install') return `${pipCmd} install ${name}`;
+    if (action === 'update') return `${pipCmd} install --upgrade ${name}`;
+    if (action === 'delete') return `${pipCmd} uninstall -y ${name}`;
+    return null;
+  }
+  return null;
+}
+
 function updatePackage(type, name) {
+  // 🛡️ Phase 1 — validate BEFORE building any shell command
+  const valid = validatePackageRequest(type, name);
+  if (!valid.ok) {
+    return Promise.resolve({ success: false, message: valid.error });
+  }
+  const base = buildPackageCommand('update', valid.type, valid.name);
+  if (!base) {
+    return Promise.resolve({ success: false, message: 'Unknown package type' });
+  }
+  const cmd = `${base} 2>&1`;
   return new Promise((resolve) => {
-    // 🛡️ Sanitize: only allow safe characters in package names (including / for scoped packages)
-    const escaped = name.replace(/[^a-zA-Z0-9@\-_.\/]/g, '');
-    if (!escaped) {
-      resolve({ success: false, message: 'Invalid package name' });
-      return;
-    }
-    let cmd;
-
-    if (type === 'npm') {
-      // Use @latest to always get the newest version (even breaking changes)
-      cmd = `npm install -g ${escaped}@latest 2>&1`;
-    } else if (type === 'pip') {
-      const pipCmd = process.platform === 'win32'
-        ? 'pip install --upgrade'
-        : 'pip3 install --upgrade';
-      cmd = `${pipCmd} ${escaped} 2>&1`;
-    } else {
-      resolve({ success: false, message: 'Unknown package type' });
-      return;
-    }
-
     exec(cmd, { timeout: 60000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
@@ -1517,27 +1562,17 @@ function updatePackage(type, name) {
  * 📥 Install a new global package (npm or pip)
  */
 function installPackage(type, name) {
+  // 🛡️ Phase 1 — validate BEFORE building any shell command
+  const valid = validatePackageRequest(type, name);
+  if (!valid.ok) {
+    return Promise.resolve({ success: false, message: valid.error });
+  }
+  const base = buildPackageCommand('install', valid.type, valid.name);
+  if (!base) {
+    return Promise.resolve({ success: false, message: 'Unknown package type' });
+  }
+  const cmd = `${base} 2>&1`;
   return new Promise((resolve) => {
-    // 🛡️ Sanitize: only allow safe characters in package names (including / for scoped packages)
-    const escaped = name.replace(/[^a-zA-Z0-9@\-_.\/]/g, '').trim();
-    if (!escaped) {
-      resolve({ success: false, message: 'Please enter a valid package name' });
-      return;
-    }
-    let cmd;
-
-    if (type === 'npm') {
-      cmd = `npm install -g ${escaped} 2>&1`;
-    } else if (type === 'pip') {
-      const pipCmd = process.platform === 'win32'
-        ? 'pip install'
-        : 'pip3 install';
-      cmd = `${pipCmd} ${escaped} 2>&1`;
-    } else {
-      resolve({ success: false, message: 'Unknown package type' });
-      return;
-    }
-
     exec(cmd, { timeout: 120000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
@@ -1553,27 +1588,17 @@ function installPackage(type, name) {
  * 🗑️ Delete (uninstall) a global package
  */
 function deletePackage(type, name) {
+  // 🛡️ Phase 1 — validate BEFORE building any shell command
+  const valid = validatePackageRequest(type, name);
+  if (!valid.ok) {
+    return Promise.resolve({ success: false, message: valid.error });
+  }
+  const base = buildPackageCommand('delete', valid.type, valid.name);
+  if (!base) {
+    return Promise.resolve({ success: false, message: 'Unknown package type' });
+  }
+  const cmd = `${base} 2>&1`;
   return new Promise((resolve) => {
-    // 🛡️ Sanitize: only allow safe characters in package names
-    const escaped = name.replace(/[^a-zA-Z0-9@\-_.\/]/g, '');
-    if (!escaped) {
-      resolve({ success: false, message: 'Invalid package name' });
-      return;
-    }
-    let cmd;
-
-    if (type === 'npm') {
-      cmd = `npm uninstall -g ${escaped} 2>&1`;
-    } else if (type === 'pip') {
-      const pipCmd = process.platform === 'win32'
-        ? 'pip uninstall -y'
-        : 'pip3 uninstall -y';
-      cmd = `${pipCmd} ${escaped} 2>&1`;
-    } else {
-      resolve({ success: false, message: 'Unknown package type' });
-      return;
-    }
-
     exec(cmd, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         const errorOutput = (stderr || stdout || '').trim().split('\n').filter(l => l.trim()).slice(-5).join('\n');
@@ -1595,8 +1620,10 @@ function deletePackage(type, name) {
  */
 function searchNpmRegistry(query) {
   return new Promise((resolve) => {
-    const q = encodeURIComponent(query.trim());
-    if (q.length < 2) { resolve([]); return; }
+    // 🛡️ Phase 1 — validate the renderer-supplied query before any network call
+    const valid = validateSearchQuery(query);
+    if (!valid.ok) { resolve([]); return; }
+    const q = encodeURIComponent(valid.query);
     const url = `https://registry.npmjs.org/-/v1/search?text=${q}&size=8`;
     https.get(url, { timeout: 5000 }, (res) => {
       let data = '';
@@ -1654,8 +1681,10 @@ async function fetchPipDescriptions(packages) {
  */
 function searchPipRegistry(query) {
   return new Promise((resolve) => {
-    const escaped = query.replace(/[^a-zA-Z0-9\-_.\s]/g, '').trim();
-    if (!escaped || escaped.length < 2) { resolve([]); return; }
+    // 🛡️ Phase 1 — validate the renderer-supplied query before any shell command
+    const valid = validateSearchQuery(query);
+    if (!valid.ok) { resolve([]); return; }
+    const escaped = valid.query;
 
     // Try pip index versions first (newer pip)
     const pipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
@@ -1779,14 +1808,17 @@ app.whenReady().then(() => {
   ipcMain.handle('get-process-list', () => getProcessList());
   ipcMain.handle('get-npm-packages', () => getNpmPackages());
   ipcMain.handle('get-pip-packages', () => getPipPackages());
+  // 🛡️ Phase 1 — every handler below validates its arguments before any shell
+  // command or network call (see validators.js). The generic `run-elevated`
+  // channel is REMOVED — only structured, validated operations can elevate.
   ipcMain.handle('update-package', (_, type, name) => updatePackage(type, name));
   ipcMain.handle('delete-package', (_, type, name) => deletePackage(type, name));
   ipcMain.handle('install-package', (_, type, name) => installPackage(type, name));
+  ipcMain.handle('elevate-package', (_, action, type, name) => runPackageElevated(action, type, name));
   ipcMain.handle('search-npm-packages', (_, query) => searchNpmRegistry(query));
   ipcMain.handle('search-pip-packages', (_, query) => searchPipRegistry(query));
   ipcMain.handle('check-admin', () => checkAdminStatus());
   ipcMain.handle('check-npm-admin', () => checkNpmNeedsAdmin());
-  ipcMain.handle('run-elevated', (_, cmd, args) => runCommandElevated(cmd, args));
   ipcMain.handle('get-cpu-temp', () => getCpuTemperature());
   ipcMain.handle('get-gpu-temp', () => getGpuTemperature());
   ipcMain.handle('get-network-speed', () => getNetworkSpeed());

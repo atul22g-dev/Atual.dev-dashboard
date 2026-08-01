@@ -49,15 +49,28 @@ export function renderProcesses(processes, filter) {
     const row = document.createElement('div');
     row.className = 'process-row';
     const memBarWidth = (proc.memory / maxMem) * 100;
-    row.innerHTML = `
-      <span class="proc-pid">${proc.pid}</span>
-      <span class="proc-name">${proc.name}</span>
-      <span class="proc-cpu">${proc.cpu.toFixed(1)}%</span>
-      <span class="proc-mem">${formatBytes(proc.memory)}</span>
-      <span class="proc-bar-container">
-        <span class="proc-bar-fill" style="width:${memBarWidth}%"></span>
-      </span>
-    `;
+
+    // Build the row with DOM APIs — dynamic values via textContent (auto-escaped)
+    const pid = document.createElement('span');
+    pid.className = 'proc-pid';
+    pid.textContent = proc.pid;
+    const name = document.createElement('span');
+    name.className = 'proc-name';
+    name.textContent = proc.name;
+    const cpu = document.createElement('span');
+    cpu.className = 'proc-cpu';
+    cpu.textContent = proc.cpu.toFixed(1) + '%';
+    const mem = document.createElement('span');
+    mem.className = 'proc-mem';
+    mem.textContent = formatBytes(proc.memory);
+    const barWrap = document.createElement('span');
+    barWrap.className = 'proc-bar-container';
+    const barFill = document.createElement('span');
+    barFill.className = 'proc-bar-fill';
+    barFill.style.width = memBarWidth + '%';
+    barWrap.appendChild(barFill);
+
+    row.append(pid, name, cpu, mem, barWrap);
     tbody.appendChild(row);
   });
 

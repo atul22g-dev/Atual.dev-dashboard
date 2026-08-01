@@ -287,23 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('pkgAdminText').textContent = `Retrying with admin privileges: ${lastFailedAction.action} ${lastFailedAction.name}...`;
     try {
       const { action, type, name } = lastFailedAction;
-      let elevatedCmd;
-      if (type === 'npm') {
-        if (action === 'install') elevatedCmd = `npm install -g ${name}`;
-        else if (action === 'update') elevatedCmd = `npm install -g ${name}@latest`;
-        else if (action === 'delete') elevatedCmd = `npm uninstall -g ${name}`;
-      } else if (type === 'pip') {
-        const isWin = navigator.platform && navigator.platform.toLowerCase().includes('win');
-        const pip = isWin ? 'pip' : 'pip3';
-        if (action === 'install') elevatedCmd = `${pip} install ${name}`;
-        else if (action === 'update') elevatedCmd = `${pip} install --upgrade ${name}`;
-        else if (action === 'delete') elevatedCmd = `${pip} uninstall -y ${name}`;
-      }
-      if (!elevatedCmd) {
-        $('pkgAdminText').textContent = '⚠️ Could not construct elevated command for this action.';
-        btn.disabled = false; btn.innerHTML = originalText; return;
-      }
-      const result = await window.electronAPI.runElevated(elevatedCmd, []);
+      // 🛡️ Phase 1 — send ONLY structured (action, type, name); the main process
+      // validates them and builds the command itself. The renderer never
+      // supplies a command string.
+      const result = await window.electronAPI.elevatePackage(action, type, name);
       if (result.success) {
         $('pkgAdminText').textContent = `✅ ${action === 'delete' ? 'Uninstalled' : action === 'update' ? 'Updated' : 'Installed'} ${name} with admin privileges!`;
         $('pkgAdminIndicator').className = 'pkg-admin-indicator success';

@@ -4,19 +4,36 @@
 
 import { $ } from '../utils.js';
 
-/** Escape HTML special chars to prevent XSS */
-function escapeHtml(str) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return str.replace(/[&<>"']/g, c => map[c]);
-}
-
-/** Wrap query matches in a <strong> with highlight class */
-function highlightText(text, query) {
-  if (!query || !text) return escapeHtml(text);
-  const escaped = escapeHtml(text);
+/**
+ * Set an element's text with query matches wrapped in <strong class="pkg-highlight">
+ * using DOM nodes only (no innerHTML — textContent auto-escapes).
+ */
+function setHighlighted(el, text, query) {
+  if (!query || !text) { el.textContent = text; return; }
   const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex special chars
   const regex = new RegExp(`(${q})`, 'gi');
-  return escaped.replace(regex, '<strong class="pkg-highlight">$1</strong>');
+  let last = 0;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const strong = document.createElement('strong');
+    strong.className = 'pkg-highlight';
+    strong.textContent = m[0];
+    el.appendChild(strong);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+// Static SVG icon markup — built via DOMParser (not innerHTML), so no HTML sink.
+const ICONS = {
+  pkg: '<svg class="pkg-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/><line x1="9" y1="3" x2="9" y2="17"/></svg>',
+  popup: '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/><line x1="9" y1="3" x2="9" y2="17"/></svg>',
+  update: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1 4 1 10 7 10"/><polyline points="19 16 19 10 13 10"/><path d="M3.5 13.5A8 8 0 0 0 16.5 7.5"/><path d="M16.5 6.5A8 8 0 0 0 3.5 12.5"/></svg>',
+  delete: '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 17 6"/><path d="M8 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/><path d="M5 6l1 10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-10"/></svg>',
+};
+function svgIcon(name) {
+  return new DOMParser().parseFromString(ICONS[name], 'image/svg+xml').documentElement;
 }
 
 export let currentPkgType = 'npm';
@@ -82,39 +99,55 @@ export function renderPackages(packages, filter) {
     const row = document.createElement('div');
     row.className = 'pkg-row';
     row.dataset.pkgName = pkg.name;
-    const highlightedName = filter ? highlightText(pkg.name, filter) : escapeHtml(pkg.name);
     const desc = pkg.description || '';
-    const safeDesc = desc ? escapeHtml(desc.substring(0, 120)) : '';
-    row.innerHTML = `
-      <span class="pkg-name" title="${desc.replace(/"/g, '&quot;')}">
-        <svg class="pkg-icon" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="14" height="14" rx="2"/>
-          <line x1="3" y1="9" x2="17" y2="9"/>
-          <line x1="9" y1="3" x2="9" y2="17"/>
-        </svg>
-        <span class="pkg-name-text">${highlightedName}</span>
-      </span>
-      <span class="pkg-info">
-        <span class="pkg-version">${pkg.version}</span>
-        ${safeDesc ? `<span class="pkg-desc">${safeDesc}</span>` : ''}
-      </span>
-      <span class="pkg-actions">
-        <button class="pkg-action-btn update" data-action="update" data-pkg="${pkg.name}" title="Update package">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polyline points="1 4 1 10 7 10"/><polyline points="19 16 19 10 13 10"/>
-            <path d="M3.5 13.5A8 8 0 0 0 16.5 7.5"/><path d="M16.5 6.5A8 8 0 0 0 3.5 12.5"/>
-          </svg>
-          Update
-        </button>
-        <button class="pkg-action-btn delete" data-action="delete" data-pkg="${pkg.name}" title="Uninstall package">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polyline points="3 6 5 6 17 6"/><path d="M8 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/>
-            <path d="M5 6l1 10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-10"/>
-          </svg>
-          Delete
-        </button>
-      </span>
-    `;
+
+    // Name block: icon + (optionally highlighted) name text
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pkg-name';
+    nameSpan.title = desc;
+    nameSpan.appendChild(svgIcon('pkg'));
+    const nameText = document.createElement('span');
+    nameText.className = 'pkg-name-text';
+    setHighlighted(nameText, pkg.name, filter);
+    nameSpan.appendChild(nameText);
+
+    // Info block: version + optional description (textContent auto-escapes)
+    const info = document.createElement('span');
+    info.className = 'pkg-info';
+    const version = document.createElement('span');
+    version.className = 'pkg-version';
+    version.textContent = pkg.version;
+    info.appendChild(version);
+    if (desc) {
+      const descSpan = document.createElement('span');
+      descSpan.className = 'pkg-desc';
+      descSpan.textContent = desc.substring(0, 120);
+      info.appendChild(descSpan);
+    }
+
+    // Action buttons
+    const actions = document.createElement('span');
+    actions.className = 'pkg-actions';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'pkg-action-btn update';
+    updateBtn.dataset.action = 'update';
+    updateBtn.dataset.pkg = pkg.name;
+    updateBtn.title = 'Update package';
+    updateBtn.appendChild(svgIcon('update'));
+    updateBtn.appendChild(document.createTextNode('Update'));
+    actions.appendChild(updateBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'pkg-action-btn delete';
+    deleteBtn.dataset.action = 'delete';
+    deleteBtn.dataset.pkg = pkg.name;
+    deleteBtn.title = 'Uninstall package';
+    deleteBtn.appendChild(svgIcon('delete'));
+    deleteBtn.appendChild(document.createTextNode('Delete'));
+    actions.appendChild(deleteBtn);
+
+    row.append(nameSpan, info, actions);
     body.appendChild(row);
   });
 
@@ -154,73 +187,87 @@ export function showPackagePopup(pkgName) {
 
   const overlay = getPopupOverlay();
   const desc = pkg.description || '';
-  const safeName = pkg.name.replace(/"/g, '&quot;');
-  const safeDesc = desc.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  overlay.innerHTML = `
-    <div class="pkg-popup">
-      <div class="pkg-popup-header">
-        <div class="pkg-popup-title-group">
-          <div class="pkg-popup-icon">
-            <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="14" height="14" rx="2"/>
-              <line x1="3" y1="9" x2="17" y2="9"/>
-              <line x1="9" y1="3" x2="9" y2="17"/>
-            </svg>
-          </div>
-          <div>
-            <div class="pkg-popup-name">
-              ${safeName}
-              <span class="pkg-popup-type-badge">${currentPkgType}</span>
-            </div>
-          </div>
-        </div>
-        <button class="pkg-popup-close" id="pkgPopupClose" title="Close">✕</button>
-      </div>
-      <div class="pkg-popup-body">
-        <div class="pkg-popup-desc"${desc ? '' : ' data-empty="true"'}>${safeDesc}</div>
-        <div class="pkg-popup-detail-grid">
-          <div class="pkg-popup-detail-item">
-            <span class="pkg-popup-detail-label">Version</span>
-            <span class="pkg-popup-detail-value">${pkg.version}</span>
-          </div>
-          <div class="pkg-popup-detail-item">
-            <span class="pkg-popup-detail-label">Package Manager</span>
-            <span class="pkg-popup-detail-value">${currentPkgType === 'npm' ? 'npm (Node.js)' : 'pip (Python)'}</span>
-          </div>
-          <div class="pkg-popup-detail-item">
-            <span class="pkg-popup-detail-label">Install Type</span>
-            <span class="pkg-popup-detail-value">Global</span>
-          </div>
-          <div class="pkg-popup-detail-item">
-            <span class="pkg-popup-detail-label">Status</span>
-            <span class="pkg-popup-detail-value" style="color:var(--success)">Installed</span>
-          </div>
-        </div>
-      </div>
-      <div class="pkg-popup-footer">
-        <button class="pkg-popup-action-btn update" data-action="updateFromPopup" data-pkg="${safeName}">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polyline points="1 4 1 10 7 10"/><polyline points="19 16 19 10 13 10"/>
-            <path d="M3.5 13.5A8 8 0 0 0 16.5 7.5"/><path d="M16.5 6.5A8 8 0 0 0 3.5 12.5"/>
-          </svg>
-          Update
-        </button>
-        <button class="pkg-popup-action-btn delete" data-action="deleteFromPopup" data-pkg="${safeName}">
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polyline points="3 6 5 6 17 6"/><path d="M8 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2"/>
-            <path d="M5 6l1 10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-10"/>
-          </svg>
-          Uninstall
-        </button>
-      </div>
-    </div>
-  `;
+  // Build the popup with DOM APIs — dynamic values go through textContent
+  // (auto-escaped), never interpolated into an HTML string.
+  const popup = document.createElement('div');
+  popup.className = 'pkg-popup';
 
+  // Header
+  const header = document.createElement('div');
+  header.className = 'pkg-popup-header';
+  const titleGroup = document.createElement('div');
+  titleGroup.className = 'pkg-popup-title-group';
+  const iconWrap = document.createElement('div');
+  iconWrap.className = 'pkg-popup-icon';
+  iconWrap.appendChild(svgIcon('popup'));
+  const titleCol = document.createElement('div');
+  const nameLine = document.createElement('div');
+  nameLine.className = 'pkg-popup-name';
+  nameLine.appendChild(document.createTextNode(pkg.name));
+  const badge = document.createElement('span');
+  badge.className = 'pkg-popup-type-badge';
+  badge.textContent = currentPkgType;
+  nameLine.appendChild(badge);
+  titleCol.appendChild(nameLine);
+  titleGroup.append(iconWrap, titleCol);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'pkg-popup-close';
+  closeBtn.id = 'pkgPopupClose';
+  closeBtn.title = 'Close';
+  closeBtn.textContent = '✕';
+  header.append(titleGroup, closeBtn);
+
+  // Body
+  const body = document.createElement('div');
+  body.className = 'pkg-popup-body';
+  const descEl = document.createElement('div');
+  descEl.className = 'pkg-popup-desc';
+  descEl.textContent = desc;
+  if (!desc) descEl.setAttribute('data-empty', 'true');
+  body.appendChild(descEl);
+
+  const grid = document.createElement('div');
+  grid.className = 'pkg-popup-detail-grid';
+  const detailItem = (label, value, valueStyle) => {
+    const item = document.createElement('div');
+    item.className = 'pkg-popup-detail-item';
+    const l = document.createElement('span');
+    l.className = 'pkg-popup-detail-label';
+    l.textContent = label;
+    const v = document.createElement('span');
+    v.className = 'pkg-popup-detail-value';
+    v.textContent = value;
+    if (valueStyle) v.setAttribute('style', valueStyle);
+    item.append(l, v);
+    return item;
+  };
+  grid.appendChild(detailItem('Version', pkg.version));
+  grid.appendChild(detailItem('Package Manager', currentPkgType === 'npm' ? 'npm (Node.js)' : 'pip (Python)'));
+  grid.appendChild(detailItem('Install Type', 'Global'));
+  grid.appendChild(detailItem('Status', 'Installed', 'color:var(--success)'));
+  body.appendChild(grid);
+
+  // Footer
+  const footer = document.createElement('div');
+  footer.className = 'pkg-popup-footer';
+  const makeFooterBtn = (action, label) => {
+    const b = document.createElement('button');
+    b.className = `pkg-popup-action-btn ${action}`;
+    b.dataset.action = action === 'update' ? 'updateFromPopup' : 'deleteFromPopup';
+    b.dataset.pkg = pkg.name;
+    b.appendChild(svgIcon(action));
+    b.appendChild(document.createTextNode(label));
+    return b;
+  };
+  footer.appendChild(makeFooterBtn('update', 'Update'));
+  footer.appendChild(makeFooterBtn('delete', 'Uninstall'));
+
+  popup.append(header, body, footer);
+  overlay.replaceChildren(popup);
   overlay.classList.add('visible');
 
-  // Close button
-  const closeBtn = overlay.querySelector('#pkgPopupClose');
+  // Close button (already built above with id pkgPopupClose)
   if (closeBtn) closeBtn.addEventListener('click', hidePackagePopup);
 
   // Action buttons inside popup
@@ -301,23 +348,14 @@ export function showActionLog(message) {
 /**
  * 🔑 Automatically retry a failed package action with elevated (admin) privileges
  * Shows the OS elevation prompt (UAC on Windows). Returns the result object.
+ *
+ * 🛡️ Phase 1 — the renderer sends ONLY (action, type, name). The main process
+ * validates them and builds the actual command; the renderer can never request
+ * an arbitrary elevated command string.
  */
 async function retryWithElevation(action, type, name) {
-  let elevatedCmd;
-  if (type === 'npm') {
-    if (action === 'install') elevatedCmd = `npm install -g ${name}`;
-    else if (action === 'update') elevatedCmd = `npm install -g ${name}@latest`;
-    else if (action === 'delete') elevatedCmd = `npm uninstall -g ${name}`;
-  } else if (type === 'pip') {
-    const isWin = navigator.platform && navigator.platform.toLowerCase().includes('win');
-    const pip = isWin ? 'pip' : 'pip3';
-    if (action === 'install') elevatedCmd = `${pip} install ${name}`;
-    else if (action === 'update') elevatedCmd = `${pip} install --upgrade ${name}`;
-    else if (action === 'delete') elevatedCmd = `${pip} uninstall -y ${name}`;
-  }
-  if (!elevatedCmd) return null;
   try {
-    return await window.electronAPI.runElevated(elevatedCmd, []);
+    return await window.electronAPI.elevatePackage(action, type, name);
   } catch (err) {
     return { success: false, message: err.message || 'Elevation failed' };
   }

@@ -52,8 +52,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkAdmin: () => ipcRenderer.invoke('check-admin'),
   // Check if npm prefix typically needs admin
   checkNpmAdmin: () => ipcRenderer.invoke('check-npm-admin'),
-  // Run a command with elevated privileges (UAC / sudo prompt)
-  runElevated: (cmd, args) => ipcRenderer.invoke('run-elevated', cmd, args),
+  // Run a WHITELISTED package operation with elevated privileges (UAC / sudo prompt)
+  // Phase 1: renderer supplies (action, type, name) only — never a command string.
+  // The main process validates everything and builds the command itself.
+  elevatePackage: (action, type, name) => ipcRenderer.invoke('elevate-package', action, type, name),
   // Fetch CPU temperature
   getCpuTemp: () => ipcRenderer.invoke('get-cpu-temp'),
   // Fetch GPU temperature

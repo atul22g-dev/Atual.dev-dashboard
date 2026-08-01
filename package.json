@@ -11,7 +11,11 @@
     "dist:linux": "electron-builder --linux",
     "doctor": "npx react-doctor@latest",
     "test": "node --test",
-    "script:Phase0": "node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30"
+    "script:Phase0": "node ./scripts/evidence.js all && node ./scripts/launch-stability.js 30",
+    "script:Phase0:measure": "node ./scripts/evidence.js measure",
+    "script:Phase0:capture": "node ./scripts/evidence.js capture",
+    "script:Phase0:stability": "node ./scripts/launch-stability.js 30",
+    "script:Phase1": "node ./scripts/verify-phase1.js"
   },
   "author": "Atual.dev",
   "license": "MIT",

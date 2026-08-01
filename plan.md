@@ -165,40 +165,69 @@ The modernization should use a lightweight stack.
 **Priority:** P1  
 **Goal:** Record the current state before changing behavior.
 
+**Status: ✅ COMPLETE** (2026-08-01) — full evidence in `plan-phase.md` §0.2–0.8.
+
 ### Tasks
 
-- [ ] Record current application behavior.
-- [ ] Record startup time.
-- [ ] Record idle CPU usage.
-- [ ] Record idle RAM usage.
-- [ ] Record renderer memory usage.
-- [ ] Capture current UI screenshots.
-- [ ] Create feature-behavior checklist.
-- [ ] Record current build/package process.
-- [ ] Record supported Windows versions.
-- [ ] Record current known security issues.
-- [ ] Record current chart rendering behavior.
-- [ ] Record current refresh intervals.
-- [ ] Establish a reference low-end Windows machine.
+- [x] Record current application behavior.
+- [x] Record startup time.
+- [x] Record idle CPU usage.
+- [x] Record idle RAM usage.
+- [x] Record renderer memory usage.
+- [x] Capture current UI screenshots.
+- [x] Create feature-behavior checklist.
+- [ ] Record current build/package process. (deferred → Phase 9)
+- [ ] Record supported Windows versions. (Win11 x64 documented; Win10 matrix deferred → Phase 10)
+- [x] Record current known security issues.
+- [x] Record current chart rendering behavior.
+- [x] Record current refresh intervals.
+- [ ] Establish a reference low-end Windows machine. (dev machine documented; low-end VM deferred)
 
 ### Baseline metrics
 
+Measured 2026-08-01 on the dev machine (Windows 11 x64 · Intel i5-10300H · 8 cores · 31.8 GB RAM · `scripts/evidence.js measure`):
+
 ```text
-Cold startup:
-Idle CPU:
-Idle RAM:
-Renderer RAM:
-First UI render:
-Average FPS:
-30-minute memory growth:
+Cold startup:        11,161 ms avg (5,675–18,475 across 5 runs) — target < 2 s
+Idle CPU:            ≈ 1.3% (0.1–4.7%) — within < 1–2% target
+Idle RAM:            ≈ 355 MB (323.8–373.3) — target < 150 MB
+Renderer RAM:        324–410 MB working set (part of total; not isolated)
+First UI render:     not separately measured (window-detect upper bound used)
+Average FPS:         not measured in Phase 0 (Phase 6)
+30-minute growth:    no uncontrolled growth — 390–435 MB band, transient 517 MB
+                     peak (30-min stability test, 59 cycles, 0 crash/freeze/error)
+```
+
+### Reference machine
+
+```text
+OS:          Windows 11 x64 (build 26200)
+CPU:         Intel Core i5-10300H @ 2.50 GHz (8 logical)
+RAM:         31.8 GB
+GPU:         Intel UHD Graphics (driver 31.0.101.1999)
+Display:     1920×1080 @ 60 Hz, 125% scaling, 1 monitor
+Node:        v26.5.1 · npm 11.17.0 · Electron 43.2.0 · electron-builder 25.1.8
+```
+
+### Known findings recorded
+
+```text
+Source:   4,502 LOC / 15 files (main.js 1,821 LOC; ~49 exec() sites)
+Refresh:  System 1.5 s · Network 1.5 s · Disk 8 s · Processes 5 s
+Security: 23 IPC channels (20 handle + 3 on); 0 shell:true; contextIsolation
+          true, nodeIntegration false, sandbox true; CSP meta present
+Features: 7/7 sections render + navigate; 0 renderer console errors
+Issues:   battery undetectable on this machine; async fields show "--"/"-" on
+          first render; GPU process crashes after many rapid launches
+          (harness-only workaround in place)
 ```
 
 ### Exit criteria
 
-- [ ] Baseline measurements saved.
-- [ ] Existing functionality documented.
-- [ ] Reference hardware documented.
-- [ ] No behavioral changes introduced.
+- [x] Baseline measurements saved. (`plan-phase.md` + `scripts/evidence.js`)
+- [x] Existing functionality documented.
+- [x] Reference hardware documented.
+- [x] No behavioral changes introduced.
 
 ---
 
@@ -209,21 +238,21 @@ Average FPS:
 
 ## 5.1 HTML / XSS protection
 
-- [ ] Create `escapeHtml()`.
-- [ ] Create `escapeAttr()`.
-- [ ] Escape registry/package data in text contexts.
-- [ ] Escape registry/package data in attribute contexts.
-- [ ] Review all dynamic HTML generation.
-- [ ] Avoid `innerHTML` when DOM APIs are practical.
+- [x] Create `escapeHtml()`.
+- [x] Create `escapeAttr()`.
+- [x] Escape registry/package data in text contexts.
+- [x] Escape registry/package data in attribute contexts.
+- [x] Review all dynamic HTML generation.
+- [x] Avoid `innerHTML` when DOM APIs are practical.
 
 ## 5.2 Command injection protection
 
-- [ ] Validate package names in the main process.
-- [ ] Never trust renderer-provided package names.
-- [ ] Remove arbitrary renderer-controlled command strings.
-- [ ] Replace generic elevation commands with structured operations.
-- [ ] Whitelist package managers.
-- [ ] Whitelist package actions.
+- [x] Validate package names in the main process.
+- [x] Never trust renderer-provided package names.
+- [x] Remove arbitrary renderer-controlled command strings.
+- [x] Replace generic elevation commands with structured operations.
+- [x] Whitelist package managers.
+- [x] Whitelist package actions.
 
 Example:
 
@@ -238,12 +267,12 @@ type PackageAction =
 
 ## 5.3 IPC validation
 
-- [ ] Validate every IPC argument.
-- [ ] Validate string types.
-- [ ] Validate enum values.
-- [ ] Validate package names.
-- [ ] Reject unexpected properties.
-- [ ] Return safe, predictable error objects.
+- [x] Validate every IPC argument.
+- [x] Validate string types.
+- [x] Validate enum values.
+- [x] Validate package names.
+- [x] Reject unexpected properties.
+- [x] Return safe, predictable error objects.
 
 ## 5.4 Command execution
 
@@ -267,11 +296,11 @@ Use a shell only when technically required.
 
 Every remaining command execution must have:
 
-- [ ] Explicit timeout.
-- [ ] Explicit `maxBuffer`.
-- [ ] Controlled arguments.
-- [ ] Predictable error handling.
-- [ ] No arbitrary renderer input.
+- [x] Explicit timeout.
+- [x] Explicit `maxBuffer`.
+- [x] Controlled arguments.
+- [x] Predictable error handling.
+- [x] No arbitrary renderer input.
 
 ## 5.6 Electron security
 
@@ -287,11 +316,11 @@ where compatible with the application architecture.
 
 ### Exit criteria
 
-- [ ] No known P0 security issue remains.
-- [ ] Renderer cannot execute arbitrary shell commands.
-- [ ] IPC inputs are validated.
-- [ ] Dynamic HTML is escaped.
-- [ ] Privileged APIs remain behind preload.
+- [x] No known P0 security issue remains.
+- [x] Renderer cannot execute arbitrary shell commands.
+- [x] IPC inputs are validated.
+- [x] Dynamic HTML is escaped.
+- [x] Privileged APIs remain behind preload.
 
 ---
 

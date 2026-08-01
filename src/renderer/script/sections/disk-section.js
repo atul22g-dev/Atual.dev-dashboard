@@ -45,17 +45,39 @@ export function renderDiskInfo(disks) {
     const percent = (disk.used / disk.total) * 100;
     const barClass = percent > 90 ? 'danger' : percent > 70 ? 'warning' : '';
 
-    card.innerHTML = `
-      <h3>${disk.mount} <span>${formatBytes(disk.total)}</span></h3>
-      <div class="disk-bar-container">
-        <div class="disk-bar-fill ${barClass}" style="width:${Math.min(percent, 100)}%"></div>
-      </div>
-      <div class="disk-stats">
-        <span>Used: <strong>${formatBytes(disk.used)}</strong></span>
-        <span>Free: <strong>${formatBytes(disk.free)}</strong></span>
-        <span>${percent.toFixed(1)}%</span>
-      </div>
-    `;
+    // Build the card with DOM APIs — dynamic values via textContent (auto-escaped)
+    const h3 = document.createElement('h3');
+    h3.appendChild(document.createTextNode(disk.mount));
+    const sizeSpan = document.createElement('span');
+    sizeSpan.textContent = formatBytes(disk.total);
+    h3.appendChild(sizeSpan);
+    card.appendChild(h3);
+
+    const barContainer = document.createElement('div');
+    barContainer.className = 'disk-bar-container';
+    const barFill = document.createElement('div');
+    barFill.className = 'disk-bar-fill' + (barClass ? ' ' + barClass : '');
+    barFill.style.width = Math.min(percent, 100) + '%';
+    barContainer.appendChild(barFill);
+    card.appendChild(barContainer);
+
+    const stats = document.createElement('div');
+    stats.className = 'disk-stats';
+    const stat = (label, value) => {
+      const s = document.createElement('span');
+      s.appendChild(document.createTextNode(label + ' '));
+      const strong = document.createElement('strong');
+      strong.textContent = value;
+      s.appendChild(strong);
+      return s;
+    };
+    stats.appendChild(stat('Used:', formatBytes(disk.used)));
+    stats.appendChild(stat('Free:', formatBytes(disk.free)));
+    const pct = document.createElement('span');
+    pct.textContent = percent.toFixed(1) + '%';
+    stats.appendChild(pct);
+    card.appendChild(stats);
+
     grid.appendChild(card);
   }
 
