@@ -429,10 +429,10 @@
                   <h3>CPU Load History</h3>
                   <div class="perf-chart-badges">
                     <span class="perf-chart-badge" id="chartCpuCurrent">0%</span>
-                    <span class="perf-chart-badge perf-chart-badge-temp" id="chartCpuTemp">--°C</span>
                   </div>
                 </div>
                 <div class="perf-chart-stats">
+                  <span class="perf-chart-stat perf-chart-stat-temp" id="chartCpuTemp">Temp: --</span>
                   <span class="perf-chart-stat" id="chartCpuAvg">Avg: 0%</span>
                   <span class="perf-chart-stat" id="chartCpuPeak">Peak: 0%</span>
                 </div>
@@ -530,6 +530,24 @@
                   </div>
                 </div>
 
+                <!-- CPU Temp -->
+                <div class="metric-item" data-metric="temp">
+                  <div class="metric-row-top">
+                    <span class="metric-key">
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+                        stroke-width="1.5">
+                        <path d="M8 1.5a1.5 1.5 0 0 1 1.5 1.5v5.2a3.5 3.5 0 1 1-3 0V3A1.5 1.5 0 0 1 8 1.5z" />
+                        <circle cx="8" cy="10.5" r="1.5" />
+                      </svg>
+                      CPU Temp
+                    </span>
+                    <span class="metric-val metric-val-temp" id="cpuTempMetric">--°C</span>
+                  </div>
+                  <div class="metric-bar-track">
+                    <div class="metric-bar-fill metric-bar-temp" id="cpuTempBarMetric"></div>
+                  </div>
+                </div>
+
                 <!-- Memory Used -->
                 <div class="metric-item" data-metric="mem">
                   <div class="metric-row-top">
@@ -547,25 +565,6 @@
                   </div>
                   <div class="metric-bar-track">
                     <div class="metric-bar-fill metric-bar-mem" id="memUsageBarMetric"></div>
-                  </div>
-                </div>
-
-                <!-- CPU Temp -->
-                <div class="metric-item" data-metric="temp">
-                  <div class="metric-row-top">
-                    <span class="metric-key">
-                      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                        stroke-width="1.5">
-                        <circle cx="8" cy="8" r="7" />
-                        <line x1="8" y1="3" x2="8" y2="8" />
-                        <polyline points="8 8 11 11" />
-                      </svg>
-                      CPU Temp
-                    </span>
-                    <span class="metric-val metric-val-temp" id="cpuTempMetric">--°C</span>
-                  </div>
-                  <div class="metric-bar-track">
-                    <div class="metric-bar-fill metric-bar-temp" id="cpuTempBarMetric"></div>
                   </div>
                 </div>
 

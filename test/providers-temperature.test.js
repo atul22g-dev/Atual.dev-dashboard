@@ -23,7 +23,10 @@ const fail = failResult;
 test('cpu temp: Method 1 — PowerShell Get-Counter (tenths already divided by PS)', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async (cmd) => (cmd.includes('Get-Counter') ? ok('36\r\n') : fail()),
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      return file === 'powershell' && cmd.includes('Get-Counter') ? ok('36\r\n') : fail();
+    },
   });
 
   const { getCpuTemperature } = loadProvider('../src/main/providers/temperature.js');
@@ -33,9 +36,10 @@ test('cpu temp: Method 1 — PowerShell Get-Counter (tenths already divided by P
 test('cpu temp: Method 3 (last resort) — WMIC MSAcpi (tenths of Kelvin converted to Celsius)', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async (cmd) => {
-      if (cmd.includes('Get-Counter')) return fail();
-      if (cmd.includes('MSAcpi')) return ok('Node,CurrentTemperature\r\nPC,3560\r\n');
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      if (file === 'powershell' && cmd.includes('Get-Counter')) return fail();
+      if (file === 'wmic' && cmd.includes('MSAcpi')) return ok('Node,CurrentTemperature\r\nPC,3560\r\n');
       return fail();
     },
   });
@@ -45,12 +49,15 @@ test('cpu temp: Method 3 (last resort) — WMIC MSAcpi (tenths of Kelvin convert
   assert.equal(await getCpuTemperature(), 83);
 });
 
-test('cpu temp: Method 3 — PowerShell PerfFormattedData fallback', async () => {
+test('cpu temp: Method 2 — PowerShell PerfFormattedData fallback', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async (cmd) => {
-      if (cmd.includes('Get-Counter') || cmd.includes('MSAcpi')) return fail();
-      return ok('52\r\n');
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      if (file === 'powershell' && cmd.includes('Get-Counter')) return fail();
+      if (file === 'wmic') return fail();
+      if (file === 'powershell' && cmd.includes('Win32_PerfFormattedData_Counters')) return ok('52\r\n');
+      return fail();
     },
   });
 
@@ -60,7 +67,7 @@ test('cpu temp: Method 3 — PowerShell PerfFormattedData fallback', async () =>
 
 test('cpu temp: returns -1 when all Windows methods fail', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => fail() });
+  mockCommandService({ runCommandFile: async () => fail() });
 
   const { getCpuTemperature } = loadProvider('../src/main/providers/temperature.js');
   assert.equal(await getCpuTemperature(), -1);
@@ -69,7 +76,10 @@ test('cpu temp: returns -1 when all Windows methods fail', async () => {
 test('cpu temp: macOS reports unavailable (-1) without running commands', async () => {
   mockPlatform('darwin');
   let ran = 0;
-  mockCommandService({ runCommand: async () => { ran++; return ok(''); } });
+  mockCommandService({
+    runCommand: async () => { ran++; return ok(''); },
+    runCommandFile: async () => { ran++; return ok(''); },
+  });
 
   const { getCpuTemperature } = loadProvider('../src/main/providers/temperature.js');
   assert.equal(await getCpuTemperature(), -1);
@@ -98,11 +108,15 @@ test('gpu temp: nvidia-smi path on Windows (shell-free execFile)', async () => {
   assert.equal(await getGpuTemperature(), 55);
 });
 
-test('gpu temp: PowerShell WMI fallback when nvidia-smi is missing', async () => {
+test('gpu temp: PowerShell CIM fallback when nvidia-smi is missing', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommandFile: async (file) => (file === 'nvidia-smi' ? fail() : ok('')),
-    runCommand: async () => ok('45\r\n'),
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      if (file === 'nvidia-smi') return fail();
+      if (file === 'powershell' && cmd.includes('Win32_PerfFormattedData_GPU_Adapter')) return ok('45\r\n');
+      return fail();
+    },
   });
 
   const { getGpuTemperature } = loadProvider('../src/main/providers/temperature.js');

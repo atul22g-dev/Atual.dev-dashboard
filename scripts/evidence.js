@@ -110,7 +110,7 @@ const SECTIONS = ['overview', 'performance', 'developer', 'network', 'disk', 'pr
 // Element IDs per section that must exist AND hold a real value (not a placeholder)
 const FEATURE_CHECKS = {
   overview: ['cpuLoadOverview', 'memUsedOverview', 'deviceName', 'processor', 'installedRam', 'storage', 'systemType', 'windowsEdition', 'uptime'],
-  performance: ['cpuLoadValue', 'memUsageValue', 'cpuRingGauge', 'cpuChart', 'memChart', 'vmChart', 'donutChart'],
+  performance: ['cpuLoadValue', 'memUsageValue', 'cpuTempMetric', 'chartCpuTemp', 'cpuRingGauge', 'cpuChart', 'memChart', 'vmChart', 'donutChart'],
   developer: ['pkgSearch', 'pkgTabNpm', 'pkgTabPip', 'pkgInstallInputNpm', 'pkgTotalCount'],
   network: ['netDlSpeed', 'netUlSpeed', 'netHostname'],
   disk: ['diskGrid', 'diskTotalSize', 'diskTotalPercent'],

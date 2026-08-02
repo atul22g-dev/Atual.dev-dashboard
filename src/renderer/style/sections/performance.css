@@ -393,6 +393,14 @@ body.light-theme .gauge-card:hover { border-color: rgba(99,102,241,0.12); box-sh
   color: #818cf8;
   border-color: rgba(99,102,241,0.15);
 }
+/* CPU Temp chip in the CPU Load History card header */
+.perf-chart-stat-temp {
+  background: rgba(34,197,94,0.08);
+  color: var(--success);
+  border-color: rgba(34,197,94,0.12);
+}
+body.light-theme .perf-chart-stat-temp { background: rgba(34,197,94,0.06); }
+#chartCpuTemp { font-weight: 700; font-variant-numeric: tabular-nums; }
 #chartMemCurrent {
   background: rgba(34,197,94,0.12);
   color: #4ade80;
@@ -419,14 +427,6 @@ body.light-theme .gauge-card:hover { border-color: rgba(99,102,241,0.12); box-sh
   50% { box-shadow: 0 0 10px rgba(245,158,11,0.12); }
 }
 #chartVmCurrent { animation: badgeGlowVm 3s ease-in-out infinite; }
-.perf-chart-badge-temp {
-  font-size: 10px; padding: 2px 7px;
-  background: rgba(239,68,68,0.08); color: var(--danger);
-  border-color: rgba(239,68,68,0.08);
-}
-.perf-chart-badge-temp.cool { background: rgba(34,197,94,0.08); color: var(--success); border-color: rgba(34,197,94,0.08); }
-.perf-chart-badge-temp.warm { background: rgba(245,158,11,0.10); color: var(--warning); border-color: rgba(245,158,11,0.10); }
-.perf-chart-badge-temp.hot { background: rgba(239,68,68,0.12); color: var(--danger); border-color: rgba(239,68,68,0.12); }
 .perf-chart-badge-vm {
   background: rgba(245,158,11,0.08);
   color: var(--warning);
@@ -645,15 +645,16 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   transition: opacity 0.3s ease;
 }
 .metric-item[data-metric="cpu"]::before { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.metric-item[data-metric="temp"]::before { background: linear-gradient(90deg, #22c55e, #f59e0b); }
 .metric-item[data-metric="mem"]::before { background: linear-gradient(90deg, #22c55e, #3b82f6); }
-.metric-item[data-metric="temp"]::before { background: linear-gradient(90deg, #f59e0b, #ef4444); }
 .metric-item[data-metric="load1m"]::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
 .metric-item[data-metric="load5m"]::before { background: linear-gradient(90deg, #eab308, #f59e0b); }
 .metric-item[data-metric="load15m"]::before { background: linear-gradient(90deg, #84cc16, #eab308); }
 .metric-item[data-metric="free"]::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
 .metric-item.metric-cpu-high::before,
+.metric-item.metric-temp-hot::before,
+.metric-item.metric-temp-warm::before,
 .metric-item.metric-mem-high::before,
-.metric-item.metric-temp-high::before,
 .metric-item.metric-load1m-high::before,
 .metric-item.metric-load5m-high::before,
 .metric-item.metric-load15m-high::before,
@@ -685,9 +686,12 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
 }
 .metric-val-cpu { color: var(--accent-primary); }
 .metric-val-mem { color: var(--success); }
-.metric-val-temp { color: var(--danger); }
 .metric-val-load { color: var(--warning); }
 .metric-val-free { color: var(--info); }
+/* CPU Temp: cool (teal-green) → warm (amber) → hot (red) */
+.metric-val-temp { color: var(--success); }
+.metric-item[data-metric="temp"].metric-temp-warm .metric-val-temp { color: var(--warning); }
+.metric-item[data-metric="temp"].metric-temp-hot .metric-val-temp { color: var(--danger); }
 
 .metric-bar-track {
   width: 100%; height: 3px;
@@ -708,9 +712,11 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
 }
 .metric-bar-cpu { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
 .metric-bar-mem { background: linear-gradient(90deg, #22c55e, #3b82f6); }
-.metric-bar-temp { background: linear-gradient(90deg, #22c55e, #f59e0b); }
 .metric-bar-load { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
 .metric-bar-free { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.metric-bar-temp { background: linear-gradient(90deg, #22c55e, #f59e0b); }
+/* updateMetricBar() threshold classes already override the color via the
+   generic .metric-bar-fill.bar-warning/.bar-danger rules (!important) */
 .metric-bar-fill.bar-danger { background: linear-gradient(90deg, #f59e0b, #ef4444) !important; }
 .metric-bar-fill.bar-warning { background: linear-gradient(90deg, #22c55e, #f59e0b) !important; }
 

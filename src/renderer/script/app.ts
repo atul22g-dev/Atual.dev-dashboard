@@ -14,7 +14,7 @@
      perf mode, reduced motion, sidebar collapse).
    ============================================================ */
 
-import { updateMetricBar, toggleMetricClass } from './utils.js';
+import { updateMetricBar } from './utils.js';
 import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts } from './charts.js';
 import {
   THEME_STORAGE_KEY,
@@ -355,37 +355,71 @@ async function loadSystemInfo(): Promise<void> {
 // ──────────────────────────────────────────────
 
 async function loadCpuTempInfo(): Promise<void> {
+  const overviewEl = document.getElementById('cpuTempOverview');
+  const metricEl = document.getElementById('cpuTempMetric');
+  const chartTempEl = document.getElementById('chartCpuTemp');
+  const metricItemEl = document.querySelector<HTMLElement>('.metric-item[data-metric="temp"]');
+
+  // Informative no-sensor state instead of a bare "N/A" — this machine has no
+  // readable CPU thermal sensor (Windows often exposes none), so hiding behind
+  // a raw placeholder would be misleading. Tooltips explain why on hover.
+  const setNoSensor = (): void => {
+    if (overviewEl) {
+      overviewEl.textContent = 'No sensor';
+      overviewEl.style.color = 'var(--text-muted)';
+      overviewEl.title = 'No CPU temperature sensor detected';
+    }
+    if (metricEl) {
+      metricEl.textContent = 'No sensor';
+      metricEl.style.color = 'var(--text-muted)';
+      metricEl.title = 'No CPU temperature sensor detected';
+    }
+    if (metricItemEl) {
+      metricItemEl.classList.remove('metric-temp-warm', 'metric-temp-hot');
+    }
+    if (chartTempEl) {
+      chartTempEl.textContent = 'Temp: No sensor';
+      chartTempEl.style.color = 'var(--text-muted)';
+      chartTempEl.title = 'No CPU temperature sensor detected';
+    }
+    updateMetricBar('cpuTempBarMetric', 0);
+  };
+
   try {
     const temp = await window.electronAPI.getCpuTemp();
-    const badgeEl = document.getElementById('chartCpuTemp');
-    const metricEl = document.getElementById('cpuTempMetric');
-
     if (temp && temp > 0 && isFinite(temp)) {
-      if (badgeEl) {
-        badgeEl.textContent = `${temp.toFixed(0)}°C`;
-        badgeEl.className = 'perf-chart-badge perf-chart-badge-temp';
-        badgeEl.style.opacity = '';
-        if (temp > 75) badgeEl.classList.add('hot');
-        else if (temp > 55) badgeEl.classList.add('warm');
-        else badgeEl.classList.add('cool');
+      const tempText = `${temp.toFixed(0)}°C`;
+      const statusColor = temp > 75 ? 'var(--danger)' : temp > 55 ? 'var(--warning)' : 'var(--success)';
+
+      // Overview metric card (next to GPU Temp)
+      if (overviewEl) {
+        overviewEl.textContent = tempText;
+        overviewEl.style.color = statusColor;
+        overviewEl.title = '';
       }
+      // Live System Metrics row (Performance)
       if (metricEl) {
-        metricEl.textContent = `${temp.toFixed(0)}°C`;
-        metricEl.style.color = temp > 75 ? 'var(--danger)' : temp > 55 ? 'var(--warning)' : 'var(--success)';
+        metricEl.textContent = tempText;
+        metricEl.style.color = statusColor;
+        metricEl.title = '';
       }
-      const tempPct = Math.min(Math.max(temp, 0), 100);
-      updateMetricBar('cpuTempBarMetric', tempPct);
-      toggleMetricClass('metric-temp-high', temp > 75, document.querySelector('[data-metric="temp"]'));
+      if (metricItemEl) {
+        metricItemEl.classList.toggle('metric-temp-hot', temp > 75);
+        metricItemEl.classList.toggle('metric-temp-warm', temp > 55 && temp <= 75);
+      }
+      // CPU Load History card chip (Performance)
+      if (chartTempEl) {
+        chartTempEl.textContent = `Temp: ${tempText}`;
+        chartTempEl.style.color = statusColor;
+        chartTempEl.title = '';
+      }
+      updateMetricBar('cpuTempBarMetric', Math.min(Math.max(temp, 0), 100));
     } else {
-      if (badgeEl) { badgeEl.textContent = 'N/A'; badgeEl.className = 'perf-chart-badge perf-chart-badge-temp'; badgeEl.style.opacity = '0.5'; }
-      if (metricEl) { metricEl.textContent = 'N/A'; metricEl.style.color = 'var(--text-muted)'; }
+      setNoSensor();
     }
   } catch (err) {
     console.error('Failed to load CPU temp:', err);
-    const badgeEl = document.getElementById('chartCpuTemp');
-    const metricEl = document.getElementById('cpuTempMetric');
-    if (badgeEl) { badgeEl.textContent = 'N/A'; badgeEl.style.opacity = '0.5'; }
-    if (metricEl) { metricEl.textContent = 'N/A'; metricEl.style.color = 'var(--text-muted)'; }
+    setNoSensor();
   }
 }
 
