@@ -236,6 +236,21 @@
             </div>
 
             <div class="metric-card glass">
+              <div class="metric-icon cpu-temp-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 3" />
+                  <path d="M8 3l-4 4" />
+                  <path d="M16 3l4 4" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                </svg>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">CPU Temp</span><span class="metric-value" id="cpuTempOverview" style="color: var(--text-muted)">No sensor</span>
+              </div>
+            </div>
+            <div class="metric-card glass">
               <div class="metric-icon gpu-temp-icon">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"
                   stroke-linecap="round" stroke-linejoin="round">
@@ -355,6 +370,19 @@
                 <span>Used: <strong id="memUsedDetail">-</strong></span><span>Free: <strong
                     id="memFreeDetail">-</strong></span><span class="perf-detail-vm">Virtual: <strong
                     id="memVirtualDetail">-</strong></span>
+              </div>
+            </div>
+            <div class="perf-card glass">
+              <div class="perf-header">
+                <h3>Fan Speed</h3>
+                <span class="perf-value perf-value-fan" id="fanRpmValue">--</span>
+              </div>
+              <div class="perf-bar-track">
+                <div class="perf-bar-fill fan-fill" id="fanRpmBar"></div>
+              </div>
+              <div class="perf-detail">
+                <span>CPU Fan: <strong id="cpuFanRpm">--</strong></span><span>GPU Fan: <strong
+                    id="gpuFanRpm">--</strong></span>
               </div>
             </div>
           </div>
@@ -1052,6 +1080,10 @@
                       id="batteryInstalled">-</span>
                   </div>
                   <div class="info-row">
+                    <span class="info-key">Battery Health</span><span class="info-value"
+                      id="batteryHealth">--</span>
+                  </div>
+                  <div class="info-row">
                     <span class="info-key">Charge Level</span><span class="info-value" id="batteryChargeLevel">-</span>
                   </div>
                   <div class="info-row">
@@ -1074,33 +1106,6 @@
                 </div>
               </div>
 
-              <div class="dev-detail-card glass">
-                <h4>
-                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
-                    style="vertical-align: middle; margin-right: 6px">
-                    <rect x="2" y="3" width="12" height="10" rx="2" />
-                    <line x1="2" y1="6" x2="14" y2="6" />
-                    <line x1="12" y1="11" x2="12" y2="12" />
-                    <line x1="10" y1="11" x2="10" y2="12" />
-                    <line x1="8" y1="11" x2="8" y2="12" />
-                  </svg>
-                  System
-                </h4>
-                <div class="info-rows-small">
-                  <div class="info-row">
-                    <span class="info-key">Hostname</span><span class="info-value" id="batteryHostname">-</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-key">Uptime</span><span class="info-value" id="batterySysUptime">-</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-key">OS</span><span class="info-value" id="batteryOS">-</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="info-key">Arch</span><span class="info-value" id="batteryArch">-</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </section>

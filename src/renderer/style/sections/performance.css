@@ -97,8 +97,102 @@
   transition: color 0.3s ease, transform 0.2s ease;
 }
 
-.perf-value-cpu { color: var(--accent-primary); }
-.perf-value-mem { color: var(--success); }
+/* Hero values: gradient display numbers (modern UI) */
+.perf-value-cpu {
+  background: linear-gradient(135deg, #818cf8, #c4b5fd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--accent-primary); /* fallback */
+}
+.perf-value-mem {
+  background: linear-gradient(135deg, #4ade80, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--success); /* fallback */
+}
+body.light-theme .perf-value-cpu {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.light-theme .perf-value-mem {
+  background: linear-gradient(135deg, #16a34a, #2563eb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* CPU Temp hero value: gradient shifts with cool/warm/hot level */
+.perf-value-temp {
+  background: linear-gradient(135deg, #4ade80, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--success); /* fallback */
+  transition: background 0.5s ease;
+}
+.perf-value-temp.warm {
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--warning); /* fallback */
+}
+.perf-value-temp.hot {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--danger); /* fallback */
+}
+body.light-theme .perf-value-temp {
+  background: linear-gradient(135deg, #16a34a, #0891b2);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.light-theme .perf-value-temp.warm {
+  background: linear-gradient(135deg, #d97706, #ea580c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+body.light-theme .perf-value-temp.hot {
+  background: linear-gradient(135deg, #ea580c, #dc2626);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* Fan Speed hero value: cyan/blue gradient ("airflow" motif) */
+.perf-value-fan {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--info); /* fallback */
+}
+body.light-theme .perf-value-fan {
+  background: linear-gradient(135deg, #0284c7, #4f46e5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* Informative no-sensor state (no fan tachometer exposed by the OS) */
+.perf-value-fan.no-sensor {
+  background: none;
+  -webkit-text-fill-color: var(--text-muted);
+  color: var(--text-muted);
+}
+/* Light theme needs an explicit match — body.light-theme .perf-value-fan
+   (specificity 0,2,1) would otherwise shadow .perf-value-fan.no-sensor. */
+body.light-theme .perf-value-fan.no-sensor {
+  background: none;
+  -webkit-text-fill-color: var(--text-muted);
+  color: var(--text-muted);
+}
 
 /* ── Progress Bars ── */
 .perf-bar-track {
@@ -127,6 +221,10 @@
 @keyframes barShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 .cpu-fill { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
 .mem-fill { background: linear-gradient(90deg, #22c55e, #3b82f6); }
+.fan-fill { background: linear-gradient(90deg, #38bdf8, #6366f1); }
+/* updateMetricBar() threshold classes override the fan bar color */
+.perf-bar-fill.fan-fill.bar-warning { background: linear-gradient(90deg, #fbbf24, #f97316); }
+.perf-bar-fill.fan-fill.bar-danger { background: linear-gradient(90deg, #ef4444, #f97316); }
 
 .perf-detail {
   display: flex;
@@ -207,7 +305,11 @@ body.light-theme .perf-card:hover { border-color: rgba(99,102,241,0.15); box-sha
 .gauge-value {
   font-size: 30px;
   font-weight: 800;
-  color: var(--text-primary);
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-primary); /* fallback */
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.5px;
   transition: color 0.5s ease;
@@ -552,7 +654,15 @@ body.light-theme .chart-tooltip-time { color: #8888a0; }
   transform: translate(-50%, -50%);
   display: flex; flex-direction: column; align-items: center; gap: 1px; pointer-events: none;
 }
-.perf-donut-value { font-size: 22px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.perf-donut-value {
+  font-size: 22px; font-weight: 800;
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-primary); /* fallback */
+  font-variant-numeric: tabular-nums;
+}
 .perf-donut-label { font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; }
 .perf-donut-legend { display: flex; gap: 14px; }
 .perf-legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-secondary); font-weight: 500; }

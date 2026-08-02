@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCpuTemp: () => ipcRenderer.invoke('get-cpu-temp'),
   // Fetch GPU temperature
   getGpuTemp: () => ipcRenderer.invoke('get-gpu-temp'),
+  // Fetch fan speeds (Linux hwmon / Windows WMI best-effort)
+  getFanInfo: () => ipcRenderer.invoke('get-fan-info'),
   // Search npm/pip registries for package suggestions
   searchNpmPackages: (query) => ipcRenderer.invoke('search-npm-packages', query),
   searchPipPackages: (query) => ipcRenderer.invoke('search-pip-packages', query),

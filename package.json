@@ -4,10 +4,9 @@
   "description": "A modern desktop system monitoring dashboard built with Electron.",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "npm run build && electron .",
-    "dev": "node scripts/dev-runner.js",
-    "dev:renderer": "vite",
-    "dev:app": "npm run build && electron . --dev-server",
+    "start": "npm run build && nodemon --exec electron .",
+    "dev": "npm run build && nodemon --exec electron .  --dev",
+    "dev:test": "node scripts/dev-runner.js",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",

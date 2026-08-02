@@ -4,9 +4,24 @@
 
 import { formatBytes, hexToRgba } from './utils.js';
 import { RingGauge } from './gauges.js';
-import { clamp, donutSliceAngles } from './math.js';
+import { clamp, donutSliceAngles, resolveCpuLoad, memoryUsedPercent } from './math.js';
 import type { SystemInfo } from '../../shared/ipc/contracts.js';
-import { MAX_HISTORY } from './constants.js';
+import { MAX_HISTORY, LOW_END_MODE_CLASS } from './constants.js';
+
+/** True while the Low-End perf mode class is applied to <body>. */
+function isLowEndMode(): boolean {
+  return document.body.classList.contains(LOW_END_MODE_CLASS);
+}
+
+/**
+ * Whether canvas drawing is currently enabled (Phase 6). Set false while the
+ * Performance section is hidden so hidden-canvas repaints stop costing CPU;
+ * history recording still runs so charts are populated on return.
+ */
+let chartsActive = true;
+export function setChartsActive(active: boolean): void {
+  chartsActive = active;
+}
 
 // ──────────────────────────────────────────────
 // 📈 LINE CHART ENGINE
@@ -221,8 +236,9 @@ class ChartEngine {
     if (!this.canvas.parentElement) return;
     const rect = this.canvas.parentElement.getBoundingClientRect();
     const w = rect.width || this.canvas.width;
-    // Phase 6: HiDPI-aware backing store (design coordinates stay in CSS px)
-    const dpr = window.devicePixelRatio || 1;
+    // Phase 6: HiDPI-aware backing store (design coordinates stay in CSS px).
+    // Low-End caps the backing store at 1× so weak iGPUs paint ¼–½ the pixels.
+    const dpr = isLowEndMode() ? 1 : (window.devicePixelRatio || 1);
     const h = this.height ? this.canvas.height / (this.canvas.width / w) : w * 0.4;
     this.canvas.width = Math.max(1, Math.round(w * dpr));
     this.canvas.height = Math.max(1, Math.round(h * dpr));
@@ -319,34 +335,36 @@ class ChartEngine {
     // Phase 5: use the tested pure clamp(v, min, max) from math.ts
     const clampY = (v: number) => clamp(v, da.y, da.y + da.h);
 
-    // Glow behind line
-    ctx.save();
-    ctx.beginPath();
-    if (opts.smooth && points.length > 2) {
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 0; i < points.length - 1; i++) {
-        const p0 = points[Math.max(i - 1, 0)];
-        const p1 = points[i];
-        const p2 = points[Math.min(i + 1, points.length - 1)];
-        const p3 = points[Math.min(i + 2, points.length - 1)];
-        ctx.bezierCurveTo(
-          p1.x + (p2.x - p0.x) * tension,
-          clampY(p1.y + (p2.y - p0.y) * tension),
-          p2.x - (p3.x - p1.x) * tension,
-          clampY(p2.y - (p3.y - p1.y) * tension),
-          p2.x, p2.y
-        );
+    // Glow behind line (skipped in Low-End mode — extra overdraw on weak GPUs)
+    if (!isLowEndMode()) {
+      ctx.save();
+      ctx.beginPath();
+      if (opts.smooth && points.length > 2) {
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < points.length - 1; i++) {
+          const p0 = points[Math.max(i - 1, 0)];
+          const p1 = points[i];
+          const p2 = points[Math.min(i + 1, points.length - 1)];
+          const p3 = points[Math.min(i + 2, points.length - 1)];
+          ctx.bezierCurveTo(
+            p1.x + (p2.x - p0.x) * tension,
+            clampY(p1.y + (p2.y - p0.y) * tension),
+            p2.x - (p3.x - p1.x) * tension,
+            clampY(p2.y - (p3.y - p1.y) * tension),
+            p2.x, p2.y
+          );
+        }
+      } else {
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
       }
-    } else {
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+      ctx.strokeStyle = hexToRgba(color, 0.25);
+      ctx.lineWidth = opts.lineWidth * 3;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
     }
-    ctx.strokeStyle = hexToRgba(color, 0.25);
-    ctx.lineWidth = opts.lineWidth * 3;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.restore();
 
     // Fill under line
     ctx.save();
@@ -412,42 +430,43 @@ class ChartEngine {
     ctx.stroke();
     ctx.restore();
 
-    // Dot markers
-    ctx.save();
-    for (let i = 0; i < points.length; i++) {
-      if (i % 5 !== 0 && i !== points.length - 1) continue;
-      ctx.beginPath();
-      ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = hexToRgba(color, 0.15);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(points[i].x, points[i].y, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-    ctx.restore();
+    // Dot markers + latest-point highlight (skipped in Low-End mode)
+    if (!isLowEndMode()) {
+      ctx.save();
+      for (let i = 0; i < points.length; i++) {
+        if (i % 5 !== 0 && i !== points.length - 1) continue;
+        ctx.beginPath();
+        ctx.arc(points[i].x, points[i].y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = hexToRgba(color, 0.15);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(points[i].x, points[i].y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+      ctx.restore();
 
-    // Highlight latest point
-    ctx.save();
-    const last = points[points.length - 1];
-    if (last) {
-      const grad = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, 12);
-      grad.addColorStop(0, hexToRgba(color, 0.4));
-      grad.addColorStop(1, hexToRgba(color, 0));
-      ctx.beginPath();
-      ctx.arc(last.x, last.y, 12, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(last.x, last.y, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(last.x, last.y, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
+      ctx.save();
+      const last = points[points.length - 1];
+      if (last) {
+        const grad = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, 12);
+        grad.addColorStop(0, hexToRgba(color, 0.4));
+        grad.addColorStop(1, hexToRgba(color, 0));
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      }
+      ctx.restore();
     }
-    ctx.restore();
   }
 
   draw(): void {
@@ -710,15 +729,15 @@ export function initCharts(): void {
 }
 
 export function updateCharts(info: SystemInfo): void {
-  const cpuLoadPercent = info.cpuUsage !== undefined ? info.cpuUsage : 0;
+  // History recording ALWAYS runs (cheap array pushes) so the charts are
+  // populated when the user returns to the Performance section.
+  const cpuLoadPercent = resolveCpuLoad(info.cpuUsage, info.loadAvg[0]);
   cpuHistory.push(cpuLoadPercent);
   if (cpuHistory.length > MAX_HISTORY) cpuHistory.shift();
 
-  const memPercent = ((info.totalMemory - info.freeMemory) / info.totalMemory) * 100;
+  const memPercent = memoryUsedPercent(info.totalMemory, info.freeMemory);
   memHistory.push(memPercent);
   if (memHistory.length > MAX_HISTORY) memHistory.shift();
-
-  if (!cpuLineChart || !memLineChart || !vmLineChart || !donutChart) return;
 
   // Virtual Memory percentage
   let vmPercent = 0;
@@ -727,6 +746,33 @@ export function updateCharts(info: SystemInfo): void {
   }
   vmHistory.push(vmPercent);
   if (vmHistory.length > MAX_HISTORY) vmHistory.shift();
+
+  paintCharts(info);
+}
+
+/**
+ * Repaint all charts from the recorded history WITHOUT pushing a new point.
+ * Called when the Performance section reopens — history was already recording
+ * while hidden, so a repaint shows the full window instantly (Phase 6).
+ */
+export function repaintCharts(info: SystemInfo): void {
+  paintCharts(info);
+}
+
+/**
+ * Canvas painting + DOM writes. Skipped entirely while the Performance
+ * section is hidden — hidden canvases have zero visual value (Phase 6).
+ */
+function paintCharts(info: SystemInfo): void {
+  if (!chartsActive) return;
+  if (!cpuLineChart || !memLineChart || !vmLineChart || !donutChart) return;
+
+  const cpuLoadPercent = resolveCpuLoad(info.cpuUsage, info.loadAvg[0]);
+  const memPercent = memoryUsedPercent(info.totalMemory, info.freeMemory);
+  let vmPercent = 0;
+  if (info.virtualMemory && info.virtualMemory.total > 0) {
+    vmPercent = ((info.virtualMemory.used / info.virtualMemory.total) * 100);
+  }
 
   cpuLineChart.updateDatasets([{ color: '#6366f1', data: [...cpuHistory] }]);
   const cpuCurrent = document.getElementById('chartCpuCurrent');

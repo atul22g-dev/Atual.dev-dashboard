@@ -6,6 +6,7 @@
    ============================================================ */
 
 import { $, formatUptime } from '../utils.js';
+import { resolveCpuLoad, memoryUsedPercent } from '../math.js';
 import type { SystemInfo } from '../../../shared/ipc/contracts.js';
 
 /** No persistent resources — this section only paints snapshots. */
@@ -14,15 +15,12 @@ export function init(): void {
 }
 
 export function update(info: SystemInfo): void {
-  // ── Live CPU Load ──
-  const cpuLoad = info.cpuUsage !== undefined
-    ? info.cpuUsage
-    : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
+  // ── Live CPU Load (shared source of truth — matches every other widget) ──
+  const cpuLoad = resolveCpuLoad(info.cpuUsage, info.loadAvg[0]);
   $('cpuLoadOverview').textContent = `${cpuLoad.toFixed(1)}%`;
 
-  // ── Live Memory Used ──
-  const usedMem = info.totalMemory - info.freeMemory;
-  const memPercent = (usedMem / info.totalMemory) * 100;
+  // ── Live Memory Used (shared source of truth) ──
+  const memPercent = memoryUsedPercent(info.totalMemory, info.freeMemory);
   $('memUsedOverview').textContent = `${memPercent.toFixed(1)}%`;
 
   // ── Uptime ──

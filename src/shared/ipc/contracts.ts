@@ -85,11 +85,34 @@ export interface BatteryInfo {
   acConnected: boolean;
 }
 
+export interface FanInfo {
+  id: string;
+  kind: 'cpu' | 'gpu';
+  label: string;
+  rpm: number;
+  /** Unit of `rpm`: 'rpm' (tachometer) or 'pct' (nvidia-smi GPU fan %, 0-100). */
+  unit?: 'rpm' | 'pct';
+}
+
+export interface FanInfoResult {
+  supported: boolean;
+  fans: FanInfo[];
+}
+
 export interface BatteryDetails {
   EstimatedRunTime?: string;
   estimatedRunTime?: string;
   TimeToFullCharge?: string;
   timeToFullCharge?: string;
+  // Capacity fields (Windows CIM/WMIC, macOS ioreg, Linux sysfs) — used to
+  // derive battery health = full-charge capacity ÷ design capacity.
+  DesignCapacity?: string | number;
+  FullChargeCapacity?: string | number;
+  MaxCapacity?: string | number;
+  charge_full_design?: string | number;
+  charge_full?: string | number;
+  CycleCount?: string | number;
+  cycle_count?: string | number;
 }
 
 export interface NetworkSpeedData {
@@ -150,6 +173,7 @@ export interface ElectronAPI {
   getNetworkSpeed(): Promise<NetworkSpeedData | null>;
   getCpuTemp(): Promise<number | null>;
   getGpuTemp(): Promise<number | null>;
+  getFanInfo(): Promise<FanInfoResult>;
 
   // Packages
   getNpmPackages(): Promise<PackageInfo[]>;

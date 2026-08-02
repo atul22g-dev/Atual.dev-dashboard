@@ -9,6 +9,7 @@
 
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const { app, powerMonitor } = require('electron');
 const { runCommand, runCommandFile, runCommandUntilSuccess } = require('../command-service');
 
@@ -189,26 +190,60 @@ function parsePsBatteryDetails(output) {
   return details;
 }
 
-/** Windows detailed battery specs: CIM-first (Phase 3/8), WMIC last resort. */
+/**
+ * Windows detailed battery specs: CIM-first (Phase 3/8), powercfg capacity
+ * fallback, WMIC last resort. All probes run shell-free via runCommandFile —
+ * the old shell-wrapped PowerShell form broke under cmd.exe quoting (same
+ * defect as the CPU temp probes; fixed 2026-08-02), so details never loaded.
+ */
 async function getWindowsBatteryDetails() {
-  const psCmd = 'powershell -NoProfile -Command "&{$bat=Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue;if($bat){echo (\'DesignCapacity=\' + $bat.DesignCapacity + [char]124 + \'FullChargeCapacity=\' + $bat.FullChargeCapacity + [char]124 + \'CycleCount=\' + $bat.CycleCount + [char]124 + \'Voltage=\' + $bat.Voltage + [char]124 + \'Chemistry=\' + $bat.Chemistry + [char]124 + \'Manufacturer=\' + $bat.Manufacturer + [char]124 + \'SerialNumber=\' + $bat.SerialNumber + [char]124 + \'Name=\' + $bat.Name + [char]124 + \'DesignVoltage=\' + $bat.DesignVoltage + [char]124 + \'EstimatedRunTime=\' + $bat.EstimatedRunTime + [char]124 + \'SmartBatteryVersion=\' + $bat.SmartBatteryVersion)}else{echo NO_BATTERY}}" 2>nul';
-
-  // Primary: PowerShell CIM (parsed only when it yields real data)
-  const psResult = await runCommand(psCmd, { timeout: 5000 });
+  // Method 1 (primary): PowerShell CIM — design/full-charge capacity, cycle
+  // count, voltage, runtime. Some machines (e.g. ASUS A32-K55) report the
+  // capacities as null through WMI even though the data exists elsewhere.
+  const psScript = `&{$bat=Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue;if($bat){echo ('DesignCapacity=' + $bat.DesignCapacity + [char]124 + 'FullChargeCapacity=' + $bat.FullChargeCapacity + [char]124 + 'CycleCount=' + $bat.CycleCount + [char]124 + 'Voltage=' + $bat.Voltage + [char]124 + 'Chemistry=' + $bat.Chemistry + [char]124 + 'Manufacturer=' + $bat.Manufacturer + [char]124 + 'SerialNumber=' + $bat.SerialNumber + [char]124 + 'Name=' + $bat.Name + [char]124 + 'DesignVoltage=' + $bat.DesignVoltage + [char]124 + 'EstimatedRunTime=' + $bat.EstimatedRunTime + [char]124 + 'SmartBatteryVersion=' + $bat.SmartBatteryVersion)}else{echo NO_BATTERY}}`;
+  const psResult = await runCommandFile('powershell', ['-NoProfile', '-Command', psScript], { timeout: 5000 });
+  const details = {};
   if (psResult.ok && psResult.stdout) {
     const output = psResult.stdout.trim().split(/[\r\n]+/)[0]?.trim();
     if (output && output !== 'NO_BATTERY') {
-      const details = parsePsBatteryDetails(output);
-      if (Object.keys(details).length > 0) return details;
+      Object.assign(details, parsePsBatteryDetails(output));
     }
   }
 
-  // Last resort: WMIC /value (deprecated — kept for older systems)
-  const wmicResult = await runCommandFile('wmic', ['path', 'Win32_Battery', 'get', '/value'], { timeout: 5000 });
-  if (wmicResult.ok && wmicResult.stdout) {
-    return parseWmicKeyValues(wmicResult.stdout);
+  // Method 2 (capacity fallback): powercfg /batteryreport — its battery-info
+  // section always lists DESIGN CAPACITY + FULL CHARGE CAPACITY (mWh), even on
+  // machines where Win32_Battery exposes them as null. Generate, read, parse.
+  // The report is read with fs (not `cat`): cat doesn't ship on stock Windows,
+  // so a shell call would silently defeat this fallback in the packaged app.
+  if (!details.DesignCapacity || !details.FullChargeCapacity) {
+    const reportPath = path.join(os.tmpdir(), `atual-battery-report-${process.pid}.html`);
+    const gen = await runCommandFile('powercfg', ['/batteryreport', '/output', reportPath], { timeout: 8000 });
+    if (gen.ok) {
+      try {
+        const html = fs.readFileSync(reportPath, 'utf8');
+        // Strip HTML tags first — the labels and values sit in separate <td>
+        // cells, so the raw markup would defeat a label→value regex.
+        const text = html.replace(/<[^>]*>/g, ' ');
+        const design = text.match(/DESIGN\s+CAPACITY\s*([\d,]+)\s*mWh/i);
+        const full = text.match(/FULL\s+CHARGE\s+CAPACITY\s*([\d,]+)\s*mWh/i);
+        if (design && !details.DesignCapacity) details.DesignCapacity = design[1].replace(/,/g, '');
+        if (full && !details.FullChargeCapacity) details.FullChargeCapacity = full[1].replace(/,/g, '');
+      } catch (e) { /* unreadable report → fall through */ }
+      try { fs.unlinkSync(reportPath); } catch (e) { /* temp report cleanup is best-effort */ }
+    }
   }
-  return {};
+
+  // Method 3 (last resort): WMIC /value (deprecated — kept for older systems).
+  // Gated on missing capacities (not empty details) so partial CIM results —
+  // e.g. only EstimatedRunTime — still get a WMIC capacity attempt.
+  if (!details.DesignCapacity || !details.FullChargeCapacity) {
+    const wmicResult = await runCommandFile('wmic', ['path', 'Win32_Battery', 'get', '/value'], { timeout: 5000 });
+    if (wmicResult.ok && wmicResult.stdout) {
+      // Merge, don't replace — preserves any partial CIM fields (e.g. runtime).
+      Object.assign(details, parseWmicKeyValues(wmicResult.stdout));
+    }
+  }
+  return details;
 }
 
 /** macOS detailed battery specs via ioreg (shell-free fixed args). */

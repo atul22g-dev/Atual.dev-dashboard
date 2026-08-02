@@ -42,8 +42,13 @@ export function init(): void {
 
   if (perfSelect) {
     perfSelect.addEventListener('change', () => {
-      const { persistSettings } = (window as unknown as { persistSettings?: (p: unknown) => void });
+      const { persistSettings, applyPerfMode } = (window as unknown as {
+        persistSettings?: (p: unknown) => void; applyPerfMode?: () => void;
+      });
       if (persistSettings) persistSettings({ perfMode: perfSelect.value });
+      // Re-apply the Low-End body class so canvas/CSS optimizations kick in
+      // immediately instead of waiting for the next app restart (Phase 6).
+      if (applyPerfMode) applyPerfMode();
     });
   }
 

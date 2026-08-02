@@ -11,6 +11,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { mock } = require('node:test');
+const fs = require('fs');
 
 const { mockCommandService, mockPlatform, loadProvider, okResult, failResult } = require('./_mock-command-service');
 
@@ -103,9 +105,15 @@ test('battery: reads capacity + status from sysfs on Linux', async () => {
   assert.equal(info.acConnected, true);
 });
 
-test('battery details: CIM-first on Windows (PowerShell primary)', async () => {
+test('battery details: CIM-first on Windows (shell-free PowerShell primary)', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => ok('DesignCapacity=5000|CycleCount=42|Voltage=11500\r\n') });
+  mockCommandService({
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      if (file === 'powershell' && cmd.includes('Get-CimInstance')) return ok('DesignCapacity=5000|CycleCount=42|Voltage=11500\r\n');
+      return fail();
+    },
+  });
 
   const { getBatteryDetails } = loadProvider('../src/main/providers/battery.js');
   const details = await getBatteryDetails();
@@ -115,11 +123,49 @@ test('battery details: CIM-first on Windows (PowerShell primary)', async () => {
   assert.equal(details.Voltage, '11500');
 });
 
-test('battery details: falls back to WMIC /value when CIM yields nothing', async () => {
+test('battery details: powercfg /batteryreport fills capacities when CIM reports null', async (t) => {
+  mockPlatform('win32');
+  // The provider reads the generated report via fs.readFileSync (cat is not
+  // shipped on Windows). Stub ONLY the battery-report path — a blanket
+  // fs.readFileSync mock would also hijack the CJS module loader's own reads
+  // and break the next require() inside loadProvider. Delegate everything else
+  // to the real implementation, and always restore via t.after (leak-proof
+  // even if an assertion throws).
+  const realReadFileSync = fs.readFileSync;
+  mock.method(fs, 'readFileSync', (filePath, ...rest) => {
+    if (String(filePath).includes('atual-battery-report')) {
+      return '<html><body><td>CHEMISTRY</td><td>LiON</td><td>DESIGN CAPACITY</td><td>48,001 mWh</td><td>FULL CHARGE CAPACITY</td><td>48,853 mWh</td></body></html>';
+    }
+    return realReadFileSync.call(fs, filePath, ...rest);
+  });
+  t.after(() => mock.restoreAll());
+  mockCommandService({
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      // CIM works but exposes null capacities (ASUS A32-K55 pattern) → fall through
+      if (file === 'powershell' && cmd.includes('Get-CimInstance')) return ok('DesignCapacity=|FullChargeCapacity=|EstimatedRunTime=41\r\n');
+      if (file === 'powercfg') return ok(''); // report generated
+      return fail();
+    },
+  });
+
+  const { getBatteryDetails } = loadProvider('../src/main/providers/battery.js');
+  const details = await getBatteryDetails();
+
+  assert.equal(details.DesignCapacity, '48001');
+  assert.equal(details.FullChargeCapacity, '48853');
+});
+
+test('battery details: falls back to WMIC /value when CIM and powercfg yield nothing', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async () => ok('NO_BATTERY\r\n'), // PS CIM empty
-    runCommandFile: async () => ok('DesignCapacity=5000\r\nCycleCount=42\r\nVoltage= 11500\r\n'), // wmic last resort
+    runCommandFile: async (file, args) => {
+      const cmd = (args || []).join(' ');
+      if (file === 'powershell' && cmd.includes('Get-CimInstance')) return ok('NO_BATTERY\r\n'); // PS CIM empty
+      if (file === 'powercfg') return fail(); // no report on this system
+      if (file === 'wmic') return ok('DesignCapacity=5000\r\nCycleCount=42\r\nVoltage= 11500\r\n'); // wmic last resort
+      return fail();
+    },
   });
 
   const { getBatteryDetails } = loadProvider('../src/main/providers/battery.js');

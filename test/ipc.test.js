@@ -88,6 +88,7 @@ const EXPECTED_HANDLE_CHANNELS = [
   'check-npm-admin',
   'get-cpu-temp',
   'get-gpu-temp',
+  'get-fan-info',
   'get-network-speed',
   'get-battery-details',
   'get-virtual-memory',

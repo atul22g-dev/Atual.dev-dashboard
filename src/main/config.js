@@ -29,6 +29,11 @@ const WINDOW = {
 
 /** Absolute paths for the window's icon, preload and renderer HTML. */
 const ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+
+// Modern-icon refresh (Phase 7): the master is a square 1024×1024; the tray
+// gets its own small render (16×16 — the classic Windows tray size) instead
+// of downscaling the master at runtime, which stays crisp on HiDPI.
+const TRAY_ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon-16.png');
 const PRELOAD_PATH = path.join(__dirname, '..', 'preload', 'preload.js');
 
 // Phase 4: always load the Vite-built bundle. The source HTML cannot
@@ -48,6 +53,7 @@ const PROCESS_RESULT_LIMIT = 30;
 module.exports = {
   WINDOW,
   ICON_PATH,
+  TRAY_ICON_PATH,
   PRELOAD_PATH,
   RENDERER_HTML,
   DEV_SERVER_URL,

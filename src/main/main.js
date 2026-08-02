@@ -25,10 +25,12 @@
 // 📦 Import required modules
 const { app, BrowserWindow, nativeImage, Tray, Menu, globalShortcut, Notification } = require('electron');
 const fs = require('fs');
-const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML, DEV_SERVER_URL } = require('./config');
+const { WINDOW, ICON_PATH, TRAY_ICON_PATH, PRELOAD_PATH, RENDERER_HTML, DEV_SERVER_URL } = require('./config');
 const { registerIpcHandlers } = require('./ipc');
 const { logError } = require('./logger');
 const { getPreferences, setPreferences } = require('./preferences');
+
+
 
 // ──────────────────────────────────────────────
 // 🪟 SINGLE-INSTANCE LOCK (must be acquired first)
@@ -72,8 +74,11 @@ function createTray() {
   if (tray) return;
   let icon = null;
   try {
-    icon = nativeImage.createFromPath(ICON_PATH);
-  } catch (e) { /* fall back to empty tray icon */ }
+    // Dedicated small tray render (16×16) — crisp on Windows/macOS tray bars.
+    icon = nativeImage.createFromPath(TRAY_ICON_PATH);
+  } catch (e) {
+    try { icon = nativeImage.createFromPath(ICON_PATH); } catch (e2) { /* fall back to empty tray icon */ }
+  }
   tray = new Tray(icon || nativeImage.createEmpty());
   tray.setToolTip('Atual.dev Dashboard');
   const menu = Menu.buildFromTemplate([
@@ -220,6 +225,14 @@ function createWindow() {
 // Disable disk cache to suppress "Unable to move cache" / "Gpu Cache Creation failed" errors
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.commandLine.appendSwitch('disk-cache-size', '0');
+
+// Phase 6 — Low-End mode: force software rendering. Weak/unsupported GPUs
+// spend more time fighting the GPU process (crashes, stalls, compositor
+// jank) than they save; SwiftShader keeps the dashboard fluid instead. Must
+// run before app.whenReady().
+if (getPreferences().perfMode === 'lowEnd') {
+  app.disableHardwareAcceleration();
+}
 
 // 'whenReady' fires after Electron has finished starting up
 app.whenReady().then(() => {

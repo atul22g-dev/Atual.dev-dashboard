@@ -5,6 +5,7 @@
 
 import { formatUptime, formatPlatform, showSectionError, clearSectionError } from '../utils.js';
 import { RingGauge } from '../gauges.js';
+import { batteryHealthPercent } from '../math.js';
 import type { BatteryDetails, SystemInfo } from '../../../shared/ipc/contracts.js';
 
 let batteryGauge: RingGauge | null = null;
@@ -116,6 +117,29 @@ export async function update(info: SystemInfo): Promise<void> {
         if (rateEl) rateEl.style.color = 'var(--text-muted)';
       }
 
+      // Battery Health = full-charge capacity ÷ design capacity (pure helper).
+      // Windows: FullChargeCapacity/DesignCapacity · macOS: MaxCapacity/DesignCapacity
+      // Linux: charge_full/charge_full_design. The row is always shown — a
+      // muted "N/A" when the OS exposes no capacity data at all.
+      const healthPct = batteryHealthPercent(
+        Number(_batteryDetails?.FullChargeCapacity ?? _batteryDetails?.MaxCapacity ?? _batteryDetails?.charge_full),
+        Number(_batteryDetails?.DesignCapacity ?? _batteryDetails?.charge_full_design)
+      );
+      const healthEl = document.getElementById('batteryHealth');
+      if (healthPct !== null) {
+        setBatteryField('batteryHealth', `${healthPct.toFixed(0)}%`, true);
+        if (healthEl) {
+          healthEl.style.color = healthPct > 80 ? 'var(--success)' : healthPct > 60 ? 'var(--warning)' : 'var(--danger)';
+          healthEl.title = `Full-charge ${_batteryDetails?.FullChargeCapacity ?? _batteryDetails?.MaxCapacity ?? _batteryDetails?.charge_full ?? '?'} / design ${_batteryDetails?.DesignCapacity ?? _batteryDetails?.charge_full_design ?? '?'} (mWh)`;
+        }
+      } else {
+        setBatteryField('batteryHealth', 'N/A', true);
+        if (healthEl) {
+          healthEl.style.color = 'var(--text-muted)';
+          healthEl.title = 'Battery health not reported by this system';
+        }
+      }
+
       const runTimeSecs = _batteryDetails?.EstimatedRunTime || _batteryDetails?.estimatedRunTime;
       if (runTimeSecs && parseInt(runTimeSecs) > 0 && parseInt(runTimeSecs) < 100000) {
         const mins = Math.round(parseInt(runTimeSecs) / 60);
@@ -155,10 +179,6 @@ export async function update(info: SystemInfo): Promise<void> {
     }
 
     setBatteryField('batteryPlatform', formatPlatform(info.platform), true);
-    setBatteryField('batteryHostname', info.hostname, true);
-    setBatteryField('batterySysUptime', formatUptime(info.uptime), true);
-    setBatteryField('batteryOS', `${info.osType} ${info.osRelease}`, true);
-    setBatteryField('batteryArch', info.arch, true);
     hideEmptyBatteryCards();
     // Only clear the banner when the detailed specs are available too —
     // otherwise a details failure would be silently wiped on the next refresh.

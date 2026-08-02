@@ -26,6 +26,13 @@ export const NET_SPEED_INTERVAL_MS = 1500;
 export const MAX_HISTORY = 60;
 
 /**
+ * Body class applied when perf mode is `lowEnd` (Phase 6). CSS and canvas
+ * code use it to strip expensive effects: backdrop blur, infinite CSS
+ * animations, chart glows/dots, gauge tweens, and HiDPI backing stores.
+ */
+export const LOW_END_MODE_CLASS = 'low-end-mode';
+
+/**
  * Performance mode interval multipliers (Phase 6).
  * Low Power / Low-End slow down every poll by this factor and let
  * sections decide to reduce animations.
@@ -37,3 +44,13 @@ export const PERF_MODE_MULTIPLIER: Record<PerfMode, number> = {
   lowPower: 2,
   lowEnd: 4,
 };
+
+/**
+ * Temp/fan probe cadence: probe every N refresh cycles (not every cycle).
+ * The refresh interval is ALREADY scaled by the perf-mode multiplier
+ * (1.5 s → 3 s → 6 s), so a single probe-every-2 gives the intended
+ * wall-clock cadence across all modes: Balanced ~3 s, Low Power ~6 s,
+ * Low-End ~12 s. These probes spawn shell commands in the main process,
+ * so throttling them is a real low-end CPU win.
+ */
+export const TEMP_PROBE_CYCLES = 2;

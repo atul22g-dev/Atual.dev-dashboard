@@ -19,6 +19,7 @@ const { getSystemInfo, getVirtualMemory } = require('./providers/system');
 const { getDiskInfo } = require('./providers/disk');
 const { getBatteryInfo, getBatteryDetails } = require('./providers/battery');
 const { getCpuTemperature, getGpuTemperature } = require('./providers/temperature');
+const { getFanInfo } = require('./providers/fan');
 const { getNetworkSpeed } = require('./providers/network');
 const { getProcessList } = require('./providers/processes');
 const {
@@ -88,6 +89,7 @@ function registerIpcHandlers(getWindow, services = {}) {
   ipcMain.handle('check-npm-admin', () => checkNpmNeedsAdmin());
   ipcMain.handle('get-cpu-temp', () => getCpuTemperature());
   ipcMain.handle('get-gpu-temp', () => getGpuTemperature());
+  ipcMain.handle('get-fan-info', () => getFanInfo());
   ipcMain.handle('get-network-speed', () => getNetworkSpeed());
   ipcMain.handle('get-battery-details', () => getBatteryDetails());
   ipcMain.handle('get-virtual-memory', () => getVirtualMemory());

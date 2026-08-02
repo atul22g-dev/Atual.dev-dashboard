@@ -6,6 +6,7 @@
 import { $, formatBytes, formatUptime, updateMetricBar, toggleMetricClass } from '../utils.js';
 import { cpuRingGauge, memRingGauge, vmRingGauge } from '../charts.js';
 import { formatCpuModel } from '../format.js';
+import { resolveCpuLoad, memoryUsedPercent } from '../math.js';
 import type { SystemInfo } from '../../../shared/ipc/contracts.js';
 
 /** No persistent resources — this section only paints snapshots. */
@@ -14,14 +15,16 @@ export function init(): void {
 }
 
 export function update(info: SystemInfo): void {
-  const cpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : Math.min((info.loadAvg[0] / info.cpus) * 100, 100);
+  // Shared sources of truth — every CPU/memory widget below shows the exact
+  // same numbers (overview card, bars, gauges, live metrics, charts).
+  const cpuLoad = resolveCpuLoad(info.cpuUsage, info.loadAvg[0]);
+  const memPercent = memoryUsedPercent(info.totalMemory, info.freeMemory);
+  const usedMem = info.totalMemory - info.freeMemory;
   $('cpuLoadValue').textContent = `${cpuLoad.toFixed(1)}%`;
-  $('cpuLoadBar').style.width = `${cpuLoad}%`;
+  $('cpuLoadBar').style.width = `${Math.min(cpuLoad, 100)}%`;
   $('cpuCoresPerf').textContent = String(info.cpus);
   $('cpuModelPerf').textContent = info.cpuModel || 'Unknown';
 
-  const usedMem = info.totalMemory - info.freeMemory;
-  const memPercent = (usedMem / info.totalMemory) * 100;
   $('memUsageValue').textContent = `${memPercent.toFixed(1)}%`;
   $('memUsageBar').style.width = `${Math.min(memPercent, 100)}%`;
   $('memUsedDetail').textContent = formatBytes(usedMem);
@@ -31,9 +34,8 @@ export function update(info: SystemInfo): void {
     memVirtual.textContent = `${formatBytes(info.virtualMemory.used)} / ${formatBytes(info.virtualMemory.total)}`;
   }
 
-  // Live System Metrics
-  const infoCpuLoad = info.cpuUsage !== undefined ? info.cpuUsage : 0;
-  $('cpuLoadMetric').textContent = `${infoCpuLoad.toFixed(1)}%`;
+  // Live System Metrics (same cpuLoad / memPercent as everywhere else)
+  $('cpuLoadMetric').textContent = `${cpuLoad.toFixed(1)}%`;
   $('memUsageMetric').textContent = `${memPercent.toFixed(1)}%`;
 
   const load1 = info.loadAvg[0];
@@ -48,7 +50,7 @@ export function update(info: SystemInfo): void {
   $('metricsCores').textContent = `Cores: ${info.cpus}`;
   $('metricsUptime').textContent = `Uptime: ${formatUptime(info.uptime)}`;
 
-  updateMetricBar('cpuLoadBarMetric', infoCpuLoad);
+  updateMetricBar('cpuLoadBarMetric', cpuLoad);
   updateMetricBar('memUsageBarMetric', memPercent);
   updateMetricBar('load1mBar', Math.min(load1, 100));
   updateMetricBar('load5mBar', Math.min(load5, 100));
@@ -56,7 +58,7 @@ export function update(info: SystemInfo): void {
   const freePct = ((info.freeMemory / info.totalMemory) * 100);
   updateMetricBar('freeBarMetric', freePct);
 
-  toggleMetricClass('metric-cpu-high', infoCpuLoad > 75, document.querySelector('[data-metric="cpu"]'));
+  toggleMetricClass('metric-cpu-high', cpuLoad > 75, document.querySelector('[data-metric="cpu"]'));
   toggleMetricClass('metric-mem-high', memPercent > 80, document.querySelector('[data-metric="mem"]'));
   toggleMetricClass('metric-load1m-high', (load1 / cpus) * 100 > 75, document.querySelector('[data-metric="load1m"]'));
   toggleMetricClass('metric-load5m-high', (load5 / cpus) * 100 > 75, document.querySelector('[data-metric="load5m"]'));

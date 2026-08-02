@@ -15,7 +15,7 @@
    ============================================================ */
 
 import { updateMetricBar } from './utils.js';
-import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts } from './charts.js';
+import { initCharts, cpuLineChart, memLineChart, vmLineChart, donutChart, updateCharts, repaintCharts, setChartsActive } from './charts.js';
 import {
   THEME_STORAGE_KEY,
   SETTINGS_STORAGE_KEY,
@@ -25,6 +25,8 @@ import {
   PROCESS_INTERVAL_MS,
   NET_SPEED_INTERVAL_MS,
   PERF_MODE_MULTIPLIER,
+  TEMP_PROBE_CYCLES,
+  LOW_END_MODE_CLASS,
   type PerfMode,
 } from './constants.js';
 import { init as initOverview, update as updateOverview, destroy as destroyOverview } from './sections/overview-section.js';
@@ -36,12 +38,15 @@ import { init as initProcesses, update as updateProcesses, destroy as destroyPro
 import { init as initBattery, update as updateBattery, destroy as destroyBattery } from './sections/battery-section.js';
 import { init as initDeveloper, update as updateDeveloper, destroy as destroyDeveloper } from './sections/developer-section.js';
 import { init as initSettings, update as updateSettings, destroy as destroySettings } from './sections/settings-section.js';
-import type { VirtualMemory } from '../../shared/ipc/contracts.js';
+import type { SystemInfo, VirtualMemory } from '../../shared/ipc/contracts.js';
 
 // ──────────────────────────────────────────────
 // 🧠 Virtual Memory Cache (persists across refresh cycles)
 // ──────────────────────────────────────────────
 let _cachedVirtualMemory: VirtualMemory | null = null;
+
+/** Last full SystemInfo snapshot — lets charts repaint instantly on activation. */
+let _lastSystemInfo: SystemInfo | null = null;
 
 // ──────────────────────────────────────────────
 // ⚙️ App settings (Phase 7) — merged defaults + localStorage
@@ -114,6 +119,17 @@ function applyTheme(): void {
   localStorage.setItem(THEME_STORAGE_KEY, isLight ? 'light' : 'dark');
 }
 
+/**
+ * Apply the Low-End perf-mode body class (Phase 6). CSS + canvas code read
+ * it to strip expensive effects (backdrop blur, infinite animations, chart
+ * glows, gauge tweens, HiDPI backing stores). Exposed via the window bridge
+ * so settings-section.ts can re-apply it live when the perf mode changes.
+ */
+function applyPerfMode(): void {
+  const lowEnd = loadSettings().perfMode === 'lowEnd';
+  document.body.classList.toggle(LOW_END_MODE_CLASS, lowEnd);
+}
+
 /** Derive a slightly purple-tinted secondary accent from the primary hex. */
 function deriveAccentSecondary(hex: string): string {
   const m = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.exec(hex || '');
@@ -179,12 +195,22 @@ const sections = document.querySelectorAll('.dashboard-section');
 function setActiveSection(section: string): void {
   navItems.forEach(n => n.classList.toggle('active', n.dataset.section === section));
   sections.forEach(s => s.classList.toggle('active', s.id === `section-${section}`));
+  // Phase 6: pause hidden-canvas painting. Charts only live in the Performance
+  // section, so its canvases stop drawing (history keeps recording) while the
+  // user is elsewhere — a real CPU/GPU win on low-end hardware.
+  setChartsActive(section === 'performance');
   if (section === 'performance') {
     requestAnimationFrame(() => {
       cpuLineChart?.resize();
       memLineChart?.resize();
       vmLineChart?.resize();
       if (donutChart && donutChart['_lastSlices']) donutChart.draw(donutChart['_lastSlices']);
+      // Repaint with the freshest snapshot so charts are never stale when the
+      // section opens (drawing was paused while hidden — updateDatasets only
+      // runs while active, otherwise the user would see up to one refresh
+      // interval of old data, 6 s on Low-End). repaintCharts draws from the
+      // already-recorded history without pushing a duplicate data point.
+      if (_lastSystemInfo) repaintCharts(_lastSystemInfo);
     });
   }
 }
@@ -227,6 +253,24 @@ if (sidebarToggle) {
 try {
   if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1') document.body.classList.add('sidebar-collapsed');
 } catch (e) { /* ignore */ }
+
+// ──────────────────────────────────────────────
+// 🌡️ TEMP/FAN PROBE THROTTLING (Phase 6)
+// ──────────────────────────────────────────────
+// loadCpuTempInfo/loadGpuTempInfo/loadFanInfo spawn shell commands in the
+// main process — throttling them by perf mode cuts main-process load on
+// low-end machines (Balanced: ~3 s, Low Power: ~6 s, Low-End: ~12 s).
+
+let tempProbeTick = 0;
+
+/**
+ * Probe cadence gate. Advances an internal cycle counter and returns true
+ * every TEMP_PROBE_CYCLES refresh cycles. (Named for its mutation side
+ * effect — it advances the counter, it doesn't just read state.)
+ */
+function nextTempProbeDue(): boolean {
+  return tempProbeTick++ % TEMP_PROBE_CYCLES === 0;
+}
 
 // ──────────────────────────────────────────────
 // 🔄 WINDOW MAXIMIZE DETECTION
@@ -321,6 +365,7 @@ let activeSection: string = 'overview';
 async function loadSystemInfo(): Promise<void> {
   try {
     const info = await window.electronAPI.getSystemInfo();
+    _lastSystemInfo = info;
     // Merge cached virtual memory (if available) to avoid flicker
     if (_cachedVirtualMemory) info.virtualMemory = _cachedVirtualMemory;
     // Fetch fresh virtual memory in background
@@ -341,9 +386,10 @@ async function loadSystemInfo(): Promise<void> {
     if (activeSection === 'battery') updateBattery(info);
     if (activeSection === 'developer') updateDeveloper();
     updateCharts(info);
-    if (activeSection === 'performance' || activeSection === 'overview') {
+    if ((activeSection === 'performance' || activeSection === 'overview') && nextTempProbeDue()) {
       loadCpuTempInfo();
       loadGpuTempInfo();
+      loadFanInfo();
     }
   } catch (err) {
     console.error('Failed to load system info:', err);
@@ -424,6 +470,85 @@ async function loadCpuTempInfo(): Promise<void> {
 }
 
 // ──────────────────────────────────────────────
+// 🌀 FAN SPEED (CPU/GPU fan RPM — Linux hwmon / Windows WMI best-effort)
+// ──────────────────────────────────────────────
+
+async function loadFanInfo(): Promise<void> {
+  const heroEl = document.getElementById('fanRpmValue');
+  const cpuEl = document.getElementById('cpuFanRpm');
+  const gpuEl = document.getElementById('gpuFanRpm');
+
+  // Format a fan reading honoring its unit (tachometer RPM vs GPU percent).
+  const fmt = (f: { rpm: number; unit?: 'rpm' | 'pct' }): string =>
+    f.unit === 'pct' ? `${f.rpm.toFixed(0)}%` : `${f.rpm.toFixed(0)} RPM`;
+  // Bar scale: % fans map 0-100 directly; RPM fans use a ~6000 RPM full scale.
+  const barPct = (f: { rpm: number; unit?: 'rpm' | 'pct' }): number =>
+    f.unit === 'pct' ? Math.min(Math.max(f.rpm, 0), 100) : (f.rpm / 6000) * 100;
+
+  const setNoSensor = (): void => {
+    if (heroEl) {
+      heroEl.textContent = 'No sensor';
+      heroEl.classList.add('no-sensor');
+      heroEl.title = 'No fan speed sensor exposed by the OS';
+    }
+    updateMetricBar('fanRpmBar', 0);
+    if (cpuEl) { cpuEl.textContent = '--'; cpuEl.style.color = 'var(--text-muted)'; cpuEl.title = 'No fan speed sensor exposed by the OS'; }
+    if (gpuEl) { gpuEl.textContent = '--'; gpuEl.style.color = 'var(--text-muted)'; gpuEl.title = 'No fan speed sensor exposed by the OS'; }
+  };
+
+  try {
+    const result = await window.electronAPI.getFanInfo();
+    const fans = (result && result.fans) || [];
+    const cpuFan = fans.find(f => f.kind === 'cpu');
+    const gpuFan = fans.find(f => f.kind === 'gpu');
+
+    if (!result || !result.supported || fans.length === 0) {
+      setNoSensor();
+      return;
+    }
+
+    // Hero shows the highest-value fan. Normalize to a common RPM scale before
+    // comparing so a pct fan (0-100) never loses to a low-RPM tach by raw value.
+    const heroFan = [...fans].sort((a, b) =>
+      (b.unit === 'pct' ? (b.rpm / 100) * 6000 : b.rpm) -
+      (a.unit === 'pct' ? (a.rpm / 100) * 6000 : a.rpm)
+    )[0];
+    if (heroEl) {
+      heroEl.textContent = fmt(heroFan);
+      heroEl.classList.remove('no-sensor');
+      heroEl.title = heroFan.label || 'Fan';
+    }
+    updateMetricBar('fanRpmBar', barPct(heroFan));
+
+    if (cpuEl && cpuFan) {
+      cpuEl.textContent = fmt(cpuFan);
+      cpuEl.title = cpuFan.label || 'CPU Fan';
+      cpuEl.style.color = cpuFan.unit === 'pct'
+        ? (cpuFan.rpm > 80 ? 'var(--danger)' : 'var(--success)')
+        : (cpuFan.rpm > 4000 ? 'var(--danger)' : 'var(--success)');
+    } else if (cpuEl) {
+      cpuEl.textContent = 'N/A';
+      cpuEl.style.color = 'var(--text-muted)';
+      cpuEl.title = '';
+    }
+    if (gpuEl && gpuFan) {
+      gpuEl.textContent = fmt(gpuFan);
+      gpuEl.title = gpuFan.label || 'GPU Fan';
+      gpuEl.style.color = gpuFan.unit === 'pct'
+        ? (gpuFan.rpm > 80 ? 'var(--danger)' : 'var(--success)')
+        : (gpuFan.rpm > 4000 ? 'var(--danger)' : 'var(--success)');
+    } else if (gpuEl) {
+      gpuEl.textContent = 'N/A';
+      gpuEl.style.color = 'var(--text-muted)';
+      gpuEl.title = '';
+    }
+  } catch (err) {
+    console.error('Failed to load fan info:', err);
+    setNoSensor();
+  }
+}
+
+// ──────────────────────────────────────────────
 // 🎮 GPU TEMPERATURE (fetched separately for Overview)
 // ──────────────────────────────────────────────
 
@@ -467,16 +592,42 @@ async function scheduleRefresh(): Promise<void> {
 
 function startAutoRefresh(): void {
   scheduleRefresh();
+  scheduleDiskPoll();
+  scheduleProcessPoll();
+  scheduleNetSpeedPoll();
   // Developer is lazy: only fetch packages after the section is first opened.
   // We still call init() once so listeners are wired, but package scanning
   // itself is deferred inside developer-section.init() until visible.
 }
 
+// ──────────────────────────────────────────────
+// 🐢 SLOW POLLS (Phase 6 completion)
+// ──────────────────────────────────────────────
+// Disk / processes / network-speed used fixed setInterval()s sized once at
+// startup, so changing the perf mode mid-session never re-tuned them. These
+// are now self-scheduling setTimeout() chains that re-read perfMultiplier()
+// every cycle — flip the setting and every poll adapts on its next tick.
+
+async function scheduleDiskPoll(): Promise<void> {
+  try { await updateDisk(); } catch (e) { console.error('Disk poll error:', e); }
+  diskInterval = setTimeout(scheduleDiskPoll, DISK_INTERVAL_MS * perfMultiplier());
+}
+
+async function scheduleProcessPoll(): Promise<void> {
+  try { await updateProcesses(); } catch (e) { console.error('Process poll error:', e); }
+  processInterval = setTimeout(scheduleProcessPoll, PROCESS_INTERVAL_MS * perfMultiplier());
+}
+
+async function scheduleNetSpeedPoll(): Promise<void> {
+  try { await loadNetworkSpeed(); } catch (e) { console.error('Network speed poll error:', e); }
+  netSpeedInterval = setTimeout(scheduleNetSpeedPoll, NET_SPEED_INTERVAL_MS * perfMultiplier());
+}
+
 function stopAutoRefresh(): void {
   if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
-  if (diskInterval) { clearInterval(diskInterval); diskInterval = null; }
-  if (processInterval) { clearInterval(processInterval); processInterval = null; }
-  if (netSpeedInterval) { clearInterval(netSpeedInterval); netSpeedInterval = null; }
+  if (diskInterval) { clearTimeout(diskInterval); diskInterval = null; }
+  if (processInterval) { clearTimeout(processInterval); processInterval = null; }
+  if (netSpeedInterval) { clearTimeout(netSpeedInterval); netSpeedInterval = null; }
   window.electronAPI.removeMaximizeListeners();
   window.electronAPI.removeMainErrorListeners();
   const stack = document.getElementById('toastStack');
@@ -514,6 +665,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initSettings();
   updateSettings();
 
+  // Charts start in the hidden Performance section (app boots on Overview),
+  // so painting is off until the user first opens Performance (Phase 6).
+  setChartsActive(false);
+
   // Track active section (so hidden sections pause their update work).
   document.querySelectorAll<HTMLElement>('.nav-item').forEach(n => {
     n.addEventListener('click', () => {
@@ -528,14 +683,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  applyPerfMode();
   startAutoRefresh();
-
-  updateDisk();
-  updateProcesses();
-  loadNetworkSpeed();
-  diskInterval = setInterval(updateDisk, DISK_INTERVAL_MS * perfMultiplier());
-  processInterval = setInterval(updateProcesses, PROCESS_INTERVAL_MS * perfMultiplier());
-  netSpeedInterval = setInterval(loadNetworkSpeed, NET_SPEED_INTERVAL_MS * perfMultiplier());
 
   const searchInput = document.getElementById('processSearch');
   if (searchInput) {
@@ -550,4 +699,4 @@ document.addEventListener('DOMContentLoaded', () => {
 // The settings section reads these helpers through a window bridge to avoid a
 // circular import (app → settings → app). Assign them explicitly — ES module
 // exports do NOT land on window on their own (Phase 7).
-Object.assign(window, { persistSettings: saveSettings, applyTheme, readSettings: loadSettings });
+Object.assign(window, { persistSettings: saveSettings, applyTheme, readSettings: loadSettings, applyPerfMode });

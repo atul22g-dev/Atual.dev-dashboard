@@ -4,6 +4,12 @@
 
 import { hexToRgba } from './utils.js';
 import { clamp, valueToPercent, percentToRadians, gradientColor } from './math.js';
+import { LOW_END_MODE_CLASS } from './constants.js';
+
+/** True while the Low-End perf mode class is applied to <body>. */
+function isLowEndMode(): boolean {
+  return document.body.classList.contains(LOW_END_MODE_CLASS);
+}
 
 interface RingGaugeOptions {
   ringWidth?: number;
@@ -81,6 +87,14 @@ export class RingGauge {
   setValue(val: number): void {
     const clamped = clamp(val, this.options.min, this.options.max);
     this.options.value = clamped;
+    // Phase 6: Low-End mode snaps directly instead of rAF-tweening — the
+    // tween loop fires ~60×/s while a value animates, which is pure waste on
+    // a low-end CPU for a 0.1-point easing step.
+    if (isLowEndMode()) {
+      this.options.animatedValue = clamped;
+      this.draw(false);
+      return;
+    }
     if (!this._isAnimating) {
       this._isAnimating = true;
       this.animate();
@@ -122,14 +136,16 @@ export class RingGauge {
     const innerRadius = outerRadius - ringWidth;
     const midRadius = (outerRadius + innerRadius) / 2;
 
-    // Outer subtle glow ring
-    const glowRadius = outerRadius + spacing;
+    // Outer subtle glow ring (skipped in Low-End mode — decorative overdraw)
     const glowColor = this.getGradientColor(percentage);
-    ctx.beginPath();
-    ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = hexToRgba(glowColor, 0.08);
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (!isLowEndMode()) {
+      const glowRadius = outerRadius + spacing;
+      ctx.beginPath();
+      ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = hexToRgba(glowColor, 0.08);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
 
     // Background track ring
     ctx.beginPath();
@@ -151,26 +167,28 @@ export class RingGauge {
     ctx.lineCap = 'round';
     ctx.stroke();
 
-    // Glow effect on the active arc
-    ctx.beginPath();
-    ctx.arc(cx, cy, midRadius, startAngle, endAngle);
-    ctx.strokeStyle = hexToRgba(this.getGradientColor(percentage), opts.glowIntensity);
-    ctx.lineWidth = ringWidth + 4;
-    ctx.lineCap = 'round';
-    ctx.globalAlpha = 0.3;
-    ctx.stroke();
-    ctx.globalAlpha = 1.0;
-
-    // White highlight dot at the end of the arc
-    if (angle > 0.05) {
-      const capX = cx + Math.cos(endAngle) * midRadius;
-      const capY = cy + Math.sin(endAngle) * midRadius;
+    // Glow effect on the active arc + white end-cap dot (both skipped in
+    // Low-End mode — extra layered strokes cost overdraw on weak GPUs)
+    if (!isLowEndMode()) {
       ctx.beginPath();
-      ctx.arc(capX, capY, ringWidth / 2 - 1, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.globalAlpha = 0.25;
-      ctx.fill();
+      ctx.arc(cx, cy, midRadius, startAngle, endAngle);
+      ctx.strokeStyle = hexToRgba(this.getGradientColor(percentage), opts.glowIntensity);
+      ctx.lineWidth = ringWidth + 4;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.3;
+      ctx.stroke();
       ctx.globalAlpha = 1.0;
+
+      if (angle > 0.05) {
+        const capX = cx + Math.cos(endAngle) * midRadius;
+        const capY = cy + Math.sin(endAngle) * midRadius;
+        ctx.beginPath();
+        ctx.arc(capX, capY, ringWidth / 2 - 1, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.25;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
     }
 
     // Tick marks around the ring

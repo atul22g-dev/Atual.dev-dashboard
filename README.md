@@ -100,7 +100,7 @@ atual-dev-dashboard/
 │   ├── launch-stability.js          #   Detached 30-min stability launch
 │   ├── stability-harness.js         #   30-min stability test harness
 │   └── verify-phase1.js             #   In-app hostile-package verification
-├── test/                            # 🧪 Unit tests (node --test, 124 tests)
+├── test/                            # 🧪 Unit tests (node --test, 126 tests)
 │   ├── validators.test.js           #   Phase 1 validators
 │   ├── evidence.test.js             #   Phase 0 tool helpers
 │   ├── command-service.test.js      #   Phase 3 command service (8 tests)
@@ -297,7 +297,7 @@ Manage globally installed npm and pip packages:
 | `npm run typecheck` | Strict TypeScript check (`tsc --noEmit`) |
 | `npm run build` | Build the renderer with Vite |
 | `npm run check` | Typecheck + unit tests |
-| `npm test` | Run unit tests (node --test, 124 tests) |
+| `npm test` | Run unit tests (node --test, 126 tests) |
 | `npm run test:smoke` | Build + boot the real app inside Electron (0 console errors) |
 | `npm run doctor` | Run React Doctor code-quality scan |
 | `npm run script:Phase1` | In-app security verification (boots real app, hostile probes) |
@@ -325,7 +325,7 @@ npx react-doctor@latest --scope changed
 ### Testing
 
 ```bash
-npm test        # 124 unit tests (node --test, zero external deps)
+npm test        # 126 unit tests (node --test, zero external deps)
 npm run test:smoke   # boots the real app inside Electron end-to-end
 ```
 
@@ -353,7 +353,7 @@ The project follows a phased modernization plan:
 | `plan.md` | Master roadmap: 11 phases from baseline → stable release |
 | `plan-phase.md` | Living tracker: status, evidence, measurements, progress log |
 
-**Status:** Phases 0–9 complete (baseline, security, architecture, reliability, TypeScript+Vite renderer, testing & CI, low-end performance, UI modernization, Windows-native, packaging scaffolding). **Phase 10 in progress** — automated validation green (124/124 tests, typecheck, Vite build, Electron smoke), dependency audit run (12 vulns in electron-builder's build-time devDep chain — no non-breaking fix; runtime deps clean), 30-min stability re-run launched (result pending). All cross-phase deferred engineering items were closed 2026-08-02: shell-free `execFile` (`runCommandFile`), CIM-first providers, per-section Retry, toast queue, chart/gauge math tests, ResizeObserver + RAF-coalesced redraws, DocumentFragment list rendering, and the Vite dev-server/HMR flow. Remaining deferrals need release infrastructure (real code signing, live auto-update server) or physical hardware (low-end/DPI/multi-monitor testing) — see `plan-phase.md` for the full evidence log.
+**Status:** Phases 0–9 complete (baseline, security, architecture, reliability, TypeScript+Vite renderer, testing & CI, low-end performance, UI modernization, Windows-native, packaging scaffolding). **Phase 10 in progress** — automated validation green (126/126 tests, typecheck, Vite build, Electron smoke), dependency audit run (12 vulns in electron-builder's build-time devDep chain — no non-breaking fix; runtime deps clean), 30-min stability re-run launched (result pending). All cross-phase deferred engineering items were closed 2026-08-02: shell-free `execFile` (`runCommandFile`), CIM-first providers, per-section Retry, toast queue, chart/gauge math tests, ResizeObserver + RAF-coalesced redraws, DocumentFragment list rendering, and the Vite dev-server/HMR flow. Remaining deferrals need release infrastructure (real code signing, live auto-update server) or physical hardware (low-end/DPI/multi-monitor testing) — see `plan-phase.md` for the full evidence log.
 
 ---
 

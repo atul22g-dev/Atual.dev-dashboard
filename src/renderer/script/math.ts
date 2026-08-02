@@ -12,6 +12,38 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Resolve the CPU-load percentage (0-100) from a single source of truth.
+ * Prefers the measured `cpuUsage` (os.cpus() delta); falls back to the
+ * 1-min load average only when cpuUsage is unavailable. In system.js the
+ * load averages are already 0-100 EMA percentages of cpuUsage, so the
+ * fallback uses them directly (no per-core rescale) — every widget
+ * (overview card, bars, gauges, live metrics, charts) shows the SAME number.
+ */
+export function resolveCpuLoad(cpuUsage: number | undefined, loadAvg0: number): number {
+  if (cpuUsage !== undefined && isFinite(cpuUsage)) return clamp(cpuUsage, 0, 100);
+  if (isFinite(loadAvg0) && loadAvg0 > 0) return Math.min(loadAvg0, 100);
+  return 0;
+}
+
+/** Memory-used percentage computed from total/free bytes (shared by every widget). */
+export function memoryUsedPercent(totalMemory: number, freeMemory: number): number {
+  if (!totalMemory || totalMemory <= 0 || !isFinite(totalMemory)) return 0;
+  return ((totalMemory - freeMemory) / totalMemory) * 100;
+}
+
+/**
+ * Battery health percentage = current full-charge capacity ÷ design capacity.
+ * Returns null when either capacity is missing/invalid/zero (no reading),
+ * clamps the ratio into 0-100 (a slightly over-capacity new battery reports
+ * 100%). Shared source of truth for the Battery section's health row.
+ */
+export function batteryHealthPercent(fullCapacity: number, designCapacity: number): number | null {
+  if (!Number.isFinite(fullCapacity) || fullCapacity <= 0) return null;
+  if (!Number.isFinite(designCapacity) || designCapacity <= 0) return null;
+  return clamp((fullCapacity / designCapacity) * 100, 0, 100);
+}
+
 /** Convert a value to a percentage (0-100) within [min, max]. */
 export function valueToPercent(value: number, min: number, max: number): number {
   const range = max - min;

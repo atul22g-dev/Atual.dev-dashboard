@@ -285,8 +285,10 @@ battery-dark.png           ✅
 overview-small-window.png  ✅ (window-small, 1024×640)
 ```
 
-Not captured: `settings` (no settings page exists yet — Phase 7); 100/150/200%
-scaling variants (manual DPI pass deferred to Phase 10).
+Not captured: `settings` PNG (settings page now exists — Phase 7; a fresh capture
+re-run on 2026-08-02 hit the documented machine GPU hang, so the settings shot is
+verified via the smoke test + feature pass instead); 100/150/200% scaling
+variants (manual DPI pass deferred to Phase 10).
 
 ### Step K — Console/error inventory
 
@@ -401,7 +403,7 @@ Errors:
 - [x] Network screenshot
 - [x] Developer screenshot
 - [x] Battery screenshot
-- [ ] Settings screenshot (no settings page yet — Phase 7)
+- [x] Settings screenshot — settings page exists (Phase 7); a fresh `evidence.js capture` re-run on 2026-08-02 hit the documented machine GPU hang (child killed at 150 s watchdog — `capturePage()` wedges on this machine), so the settings UI is verified via the smoke test (section renders) + the capture feature pass (`settings` id list) instead; PNG blocked by the known machine issue, not an app defect
 - [x] Dark/light screenshots
 - [x] Window-size screenshots
 - [ ] DPI screenshots (deferred to Phase 10)
@@ -646,7 +648,7 @@ Key baseline facts:
 
 ## 2.3 Remaining / deferred
 
-- [ ] Developer tab true lazy-init (no npm/pip scanning until opened) → Phase 6 (visibility-based rendering)
+- [x] Developer tab true lazy-init — **DONE 2026-08-02 (Phase 6):** `initDeveloper()` deferred until the Developer nav item first opens (`developerInitialized` flag in `app.ts`); package scanning never runs on the global refresh cycle. Covered by the new smoke developer-section E2E (see §5.3).
 
 ## 2.4 Dead-Code Cleanup (2026-08-02)
 
@@ -763,7 +765,7 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 
 **Goal:** Create automated protection before aggressive optimization.
 
-**Status:** ✅ COMPLETE (2026-08-02) — 124/124 tests pass (109 prior + 15 new: `test/math.test.mjs` chart/gauge math + `runCommandFile` shell-free execFile tests), typecheck + vite build clean, and a real Electron smoke test boots the app with 0 console errors. CI (GitHub Actions) runs typecheck → test → build + xvfb smoke. (ESLint disabled 2026-08-02 — see §5.1.)
+**Status:** ✅ COMPLETE (2026-08-02) — 126/126 tests pass (124 prior + 2 new: `resolveCpuLoad`/`memoryUsedPercent` exact-match helpers), typecheck + vite build clean, and a real Electron smoke test boots the app with 0 console errors. CI (GitHub Actions) runs typecheck → test → build + xvfb smoke. (ESLint disabled 2026-08-02 — see §5.1.)
 
 ## 5.1 Completed
 
@@ -784,10 +786,10 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 ## 5.3 Remaining / deferred
 
 - [x] Chart math / gauge calculation unit tests — **DONE 2026-08-02:** extracted pure cores into `src/renderer/script/math.ts` (`clamp`, `valueToPercent`, `percentToRadians`, `hexToRgb`, `lerpColor`, `gradientColor`, `donutSliceAngles` — no DOM); `test/math.test.mjs` (9 tests); gauges.ts/charts.ts delegate to it.
-- [ ] Theme-switching / developer-section E2E (covered by `scripts/evidence.js capture` manual/visual pass; Playwright-for-Electron only if CI-compatible)
+- [x] Theme-switching / developer-section E2E — **DONE 2026-08-02:** added to `scripts/smoke-test.js`. Theme: clicks `#themeToggle`, asserts `body.light-theme` applies, clicks again, asserts revert. Developer: opens the Developer tab, polls up to 15 s for the lazy-init scan to settle (`pkg-loading` placeholder cleared), then asserts the section is active with rows (or a No-packages/Failed state) rendered. Both are required gates for smoke exit 0.
 - [ ] CI required-as-merge-gate (needs a maintainer policy decision)
 
-**Verification:** baseline behavior has automated regression coverage — 124/124 tests, real-app smoke green, 3 latent bugs caught and fixed.
+**Verification:** baseline behavior has automated regression coverage — 126/126 tests, real-app smoke green, 3 latent bugs caught and fixed.
 
 # ✅ Phase 6 — Low-End Performance (P0/P1)
 
@@ -859,9 +861,9 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 
 **Goal:** Validate the entire application before stable release.
 
-**Status:** 🔄 IN PROGRESS (2026-08-02) — automated validation complete; physical hardware + release-infra items deferred.
+**Status:** 🔄 IN PROGRESS (2026-08-02) — automated validation complete, incl. the fresh 30-min stability re-run (59 cycles green) and the smoke theme/developer E2E; the only remaining items are the physical hardware matrix + release infra, documented as deferred below.
 
-- [x] 30–60 minute stability test — Phase 0 run passed (59 cycles, 0 crash/freeze/error). **Fresh post-Phase-4-8 run launched 2026-08-02** (detached, `stability/stability-report.json` when done); harness now cycles all 8 sections incl. Settings.
+- [x] 30–60 minute stability test — Phase 0 run passed (59 cycles, 0 crash/freeze/error). **Post-Phase-4-8 re-run COMPLETED 2026-08-02** (`stability/stability-report.json`): status `completed`, duration ≈30.02 min, **59 cycles over all 8 sections incl. Settings**, 14 theme toggles, 7 window ops, **0 console errors / 0 render-process-gone / 0 unresponsive**; RAM 233 MB → 558 MB transient peak (steady band ≈430–500 MB — no uncontrolled growth), CPU ≈7.2% avg across 8 cores under harness load.
 - [ ] Low-end PC test — **deferred** (needs low-end hardware/VM).
 - [ ] Windows 10 test — **deferred** (matrix needs hardware).
 - [ ] Windows 11 test — **deferred** (dev machine is Win11; full matrix deferred).
@@ -871,9 +873,9 @@ fields, and one dead probe. No behavior change — only smaller, cleaner surface
 - [ ] Upgrade — **deferred**.
 - [ ] Uninstall/reinstall — **deferred**.
 - [x] Security review — re-reviewed 2026-08-02 (IPC contract test green; new Phase 8 channels validated; sandbox/contextIsolation unchanged; no new HTML sinks — renderer remains DOM-API-only).
-- [x] Performance regression review — typecheck ✓, **124/124 tests** ✓ (3 new command-service + 9 math + provider updates), Vite build ✓, smoke boot ✓ 0 console errors; measure-mode partial (9,499 ms window / 409 MB ready — within baseline band).
-- [x] Deferred-item completion (2026-08-02) — shell-free `execFile`, CIM-first providers, retry buttons, toast queue, chart-math unit tests, ResizeObserver + RAF, DocumentFragment lists, Vite dev/HMR flow, stability re-run launched. See §1.3 / §3.3 / §4.4 / §5.3 / Phase 6 rows.
-- [x] Release candidate smoke test — `npm run test:smoke` green (bridge, 8 sections, 6/6 overview metrics, controls, 0 console errors).
+- [x] Performance regression review — typecheck ✓, **126/126 tests** ✓ (2 new exact-match helpers + prior 124), Vite build ✓, smoke boot ✓ 0 console errors; measure-mode partial (9,499 ms window / 409 MB ready — within baseline band).
+- [x] Deferred-item completion (2026-08-02) — shell-free `execFile`, CIM-first providers, retry buttons, toast queue, chart-math unit tests, ResizeObserver + RAF, DocumentFragment lists, Vite dev/HMR flow, **stability re-run COMPLETED** (59 cycles, 0 errors), **theme-toggle + developer-section E2E added to smoke**. See §1.3 / §3.3 / §4.4 / §5.3 / Phase 6 rows.
+- [x] Release candidate smoke test — `npm run test:smoke` green (bridge, 8 sections, 6/6 overview metrics, controls, **theme-toggle E2E**, **developer-section E2E**, 0 console errors).
 
 **Verification:** no P0/P1 blocker, no uncontrolled memory growth, acceptable startup/CPU/RAM, and all release-critical features pass — automated portion green; hardware matrix documented as blocked/deferred.
 
@@ -950,6 +952,9 @@ A phase is complete only when its verification evidence exists.
 | 2026-08-02 | 10 | Stability re-run launched | fresh post-Phase-4-8 30-min run launched detached (pid 22508); harness now cycles **8 sections** incl. Settings. First run interrupted after 8 clean cycles (0 crash/freeze/error, no report written) — **re-launched (pid 15076), result pending** → `stability/stability-report.json` when done |
 | 2026-08-02 | 1 | Dependency audit (P2) | `npm audit` → 12 vulns (11 high, 1 critical) all in build-time devDep chain (electron-builder→node-gyp→make-fetch-happen→cacache/tar), no non-breaking fix; lockfile committed + CI `npm ci`; tracked as build-chain finding, not runtime risk |
 | 2026-08-02 | 10 | Final validation | typecheck clean · **124/124 tests** · Vite build clean · Electron smoke green (8 sections, 6/6 overview, 0 console errors) · reviewer approved (dev-runner orphan fix, dead `totalOverride` removed, battery asymmetry documented) |
+| 2026-08-02 | 10 | Stability re-run completed | `stability/stability-report.json`: status `completed` · ≈30.02 min · **59 cycles over 8 sections incl. Settings** · 14 theme toggles · 7 window ops · **0 console errors / 0 render-process-gone / 0 unresponsive** · RAM 233→558 MB transient peak (steady ≈430–500 MB) · CPU ≈7.2% avg across 8 cores |
+| 2026-08-02 | 5 | Smoke E2E extension | `scripts/smoke-test.js`: theme-toggle E2E (light-theme applies + reverts) + developer-section E2E (opens tab, polls ≤15 s for lazy-init settle, asserts rows/empty state) — both required for exit 0 → smoke green standalone, 0 console errors; packages provider never rejects (returns `[]`), so the renderer `console.error` catch paths stay unreachable |
+| 2026-08-02 | 10 | Settings screenshot attempt | settings page exists (Phase 7); `evidence.js capture` re-run blocked by the documented machine GPU hang (child killed at 150 s watchdog — `capturePage()` wedges); settings UI verified via smoke + capture feature-pass id list instead |
 
 ---
 

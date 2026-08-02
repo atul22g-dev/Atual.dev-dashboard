@@ -18,7 +18,54 @@ import {
   lerpColor,
   gradientColor,
   donutSliceAngles,
+  resolveCpuLoad,
+  memoryUsedPercent,
+  batteryHealthPercent,
 } from '../src/renderer/script/math.ts';
+
+test('resolveCpuLoad prefers measured cpuUsage (single source of truth)', () => {
+  // Every widget (overview card, bars, gauges, live metrics, charts) must
+  // render the exact same percentage — cpuUsage wins when present.
+  assert.equal(resolveCpuLoad(42.3, 10), 42.3);
+  assert.equal(resolveCpuLoad(0, 10), 0); // 0 is valid — must NOT fall back
+  assert.equal(resolveCpuLoad(100, 10), 100);
+  // Defensive clamp on a present out-of-range cpuUsage
+  assert.equal(resolveCpuLoad(150, 10), 100);
+  assert.equal(resolveCpuLoad(-5, 10), 0);
+  // NaN/undefined cpuUsage falls back to the load-average estimate
+  assert.equal(resolveCpuLoad(undefined, 20), 20);
+  assert.equal(resolveCpuLoad(NaN, 20), 20);
+  // Fallback clamped to 100, zero/NaN loads → 0
+  assert.equal(resolveCpuLoad(undefined, 200), 100);
+  assert.equal(resolveCpuLoad(undefined, 0), 0);
+  assert.equal(resolveCpuLoad(undefined, NaN), 0);
+});
+
+test('memoryUsedPercent computes the same percent used by every widget', () => {
+  assert.equal(memoryUsedPercent(100, 25), 75);
+  assert.equal(memoryUsedPercent(0, 0), 0);
+  assert.equal(memoryUsedPercent(100, 100), 0);
+  assert.equal(memoryUsedPercent(100, 0), 100);
+  // Guard against zero/negative/invalid total (never NaN)
+  assert.equal(memoryUsedPercent(0, 5), 0);
+  assert.equal(memoryUsedPercent(-1, 5), 0);
+  assert.ok(Number.isFinite(memoryUsedPercent(NaN, 5)));
+});
+
+test('batteryHealthPercent = full-charge ÷ design capacity (clamped 0-100)', () => {
+  assert.equal(batteryHealthPercent(4500, 5000), 90);
+  assert.equal(batteryHealthPercent(5000, 5000), 100);
+  assert.equal(batteryHealthPercent(2500, 5000), 50);
+  // Slightly over-capacity new battery → 100 (clamped), never > 100
+  assert.equal(batteryHealthPercent(5100, 5000), 100);
+  // Missing/invalid/zero capacities → null (no reading, row hidden)
+  assert.equal(batteryHealthPercent(0, 5000), null);
+  assert.equal(batteryHealthPercent(4500, 0), null);
+  assert.equal(batteryHealthPercent(NaN, 5000), null);
+  assert.equal(batteryHealthPercent(4500, NaN), null);
+  assert.equal(batteryHealthPercent(-5, 5000), null);
+  assert.equal(batteryHealthPercent(4500, -5), null);
+});
 
 test('clamp bounds a value', () => {
   assert.equal(clamp(5, 0, 10), 5);
