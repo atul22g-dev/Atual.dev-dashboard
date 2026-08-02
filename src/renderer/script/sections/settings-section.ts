@@ -91,7 +91,7 @@ export function update(): void {
 }
 
 /** Persist OS-level preferences to the main process (Phase 8). */
-export function setPreference(patch: PartialPreferences): Promise<AppPreferences> {
+function setPreference(patch: PartialPreferences): Promise<AppPreferences> {
   return window.electronAPI.setAppPreferences(patch);
 }
 

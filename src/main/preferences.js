@@ -34,7 +34,6 @@ let _cache = null;
 function preferencesFilePath() {
   let base;
   try {
-    // eslint-disable-next-line global-require
     const { app } = require('electron');
     base = app?.getPath ? app.getPath('userData') : null;
   } catch (e) {
@@ -70,4 +69,4 @@ function setPreferences(patch) {
   return { ...next };
 }
 
-module.exports = { DEFAULT_PREFERENCES, getPreferences, setPreferences };
+module.exports = { getPreferences, setPreferences };

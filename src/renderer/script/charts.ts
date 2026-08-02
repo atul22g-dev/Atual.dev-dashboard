@@ -12,12 +12,12 @@ import { MAX_HISTORY } from './constants.js';
 // 📈 LINE CHART ENGINE
 // ──────────────────────────────────────────────
 
-export interface ChartDataset {
+interface ChartDataset {
   color?: string;
   data: Array<number | null | undefined>;
 }
 
-export interface ChartOptions {
+interface ChartOptions {
   padding?: { top: number; right: number; bottom: number; left: number };
   lineWidth?: number;
   fillOpacity?: number;
@@ -571,7 +571,7 @@ class ChartEngine {
 // 🍩 DONUT CHART (Memory Distribution)
 // ──────────────────────────────────────────────
 
-export interface DonutSlice {
+interface DonutSlice {
   value: number;
   color: string;
 }

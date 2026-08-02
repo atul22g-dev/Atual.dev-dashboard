@@ -47,7 +47,7 @@ let _cachedVirtualMemory: VirtualMemory | null = null;
 // ⚙️ App settings (Phase 7) — merged defaults + localStorage
 // ──────────────────────────────────────────────
 
-export interface DashboardSettings {
+interface DashboardSettings {
   theme: 'system' | 'light' | 'dark';
   accentColor: string;
   perfMode: PerfMode;
@@ -71,14 +71,10 @@ function loadSettings(): DashboardSettings {
   }
 }
 
-export function saveSettings(patch: Partial<DashboardSettings>): DashboardSettings {
+function saveSettings(patch: Partial<DashboardSettings>): DashboardSettings {
   const next = { ...loadSettings(), ...patch };
   try { localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next)); } catch (e) { /* storage unavailable */ }
   return next;
-}
-
-export function getSettings(): DashboardSettings {
-  return loadSettings();
 }
 
 // ──────────────────────────────────────────────
@@ -516,9 +512,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('beforeunload', stopAutoRefresh);
 });
-
-// Re-exported for the settings section to re-apply theme changes.
-export { applyTheme, saveSettings as persistSettings, loadSettings as readSettings };
 
 // The settings section reads these helpers through a window bridge to avoid a
 // circular import (app → settings → app). Assign them explicitly — ES module

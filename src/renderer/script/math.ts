@@ -45,7 +45,7 @@ export function lerpColor(a: string, b: string, t: number): string {
   return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
 }
 
-export interface GradientOptions {
+interface GradientOptions {
   lowThreshold: number;
   midThreshold: number;
   lowColor: string;
@@ -66,12 +66,12 @@ export function gradientColor(percent: number, opts: GradientOptions): string {
   return lerpColor(lowColor, midColor, t);
 }
 
-export interface DonutSliceInput {
+interface DonutSliceInput {
   value: number;
   color: string;
 }
 
-export interface DonutSliceAngle {
+interface DonutSliceAngle {
   value: number;
   color: string;
   start: number;

@@ -5,7 +5,7 @@
 import { hexToRgba } from './utils.js';
 import { clamp, valueToPercent, percentToRadians, gradientColor } from './math.js';
 
-export interface RingGaugeOptions {
+interface RingGaugeOptions {
   ringWidth?: number;
   ringSpacing?: number;
   value?: number;
