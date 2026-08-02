@@ -56,7 +56,7 @@ async function loadBatteryDetails(): Promise<void> {
   } catch (err) {
     console.error('Failed to load battery details:', err);
     _batteryDetailsFailed = true;
-    showSectionError('battery', 'Battery details unavailable (design capacity, cycle count, runtime).');
+    showSectionError('battery', 'Battery details unavailable (design capacity, cycle count, runtime).', () => { void loadBatteryDetails(); });
   }
 }
 
@@ -165,7 +165,7 @@ export async function update(info: SystemInfo): Promise<void> {
     if (!_batteryDetailsFailed) clearSectionError('battery');
   } catch (err) {
     console.error('Battery info error:', err);
-    showSectionError('battery', 'Failed to read battery status. Retrying automatically…');
+    showSectionError('battery', 'Failed to read battery status. Retrying automatically…', () => { void update(info); });
   }
 }
 

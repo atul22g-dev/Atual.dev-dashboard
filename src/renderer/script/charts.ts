@@ -4,6 +4,7 @@
 
 import { formatBytes, hexToRgba } from './utils.js';
 import { RingGauge } from './gauges.js';
+import { clamp, donutSliceAngles } from './math.js';
 import type { SystemInfo } from '../../shared/ipc/contracts.js';
 import { MAX_HISTORY } from './constants.js';
 
@@ -37,7 +38,8 @@ class ChartEngine {
     padding: { top: number; right: number; bottom: number; left: number };
     datasets: ChartDataset[];
   };
-  private resizeHandler!: () => void;
+  private resizeObserver: ResizeObserver | null = null;
+  private _resizeQueued = false;
   private _tooltip: HTMLElement | null = null;
   private _boundMouseMove!: (e: MouseEvent) => void;
   private _boundMouseLeave!: () => void;
@@ -65,8 +67,15 @@ class ChartEngine {
       ...options,
     } as ChartEngine['options'];
 
-    this.resizeHandler = () => this.resize();
-    window.addEventListener('resize', this.resizeHandler);
+    // Phase 6 completion: ResizeObserver on the canvas parent replaces the
+    // window-level resize listener (fires for container/layout changes too),
+    // and scheduleResize() coalesces bursts into a single rAF draw.
+    if (typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
+      this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
+      this.resizeObserver.observe(canvas.parentElement);
+    } else {
+      window.addEventListener('resize', this._boundWindowResize);
+    }
 
     this._createTooltip();
 
@@ -75,8 +84,20 @@ class ChartEngine {
     this.canvas.addEventListener('mousemove', this._boundMouseMove);
     this.canvas.addEventListener('mouseleave', this._boundMouseLeave);
 
-    requestAnimationFrame(() => this.resize());
+    this.scheduleResize();
   }
+
+  /** Coalesce resize requests into a single rAF-framed resize+draw. */
+  scheduleResize(): void {
+    if (this._resizeQueued) return;
+    this._resizeQueued = true;
+    requestAnimationFrame(() => {
+      this._resizeQueued = false;
+      this.resize();
+    });
+  }
+
+  private _boundWindowResize = () => this.scheduleResize();
 
   _createTooltip(): void {
     if (!this.canvas) return;
@@ -295,7 +316,8 @@ class ChartEngine {
 
     const color = dataset.color || '#6366f1';
     const tension = 0.3;
-    const clamp = (v: number) => Math.max(da.y, Math.min(da.y + da.h, v));
+    // Phase 5: use the tested pure clamp(v, min, max) from math.ts
+    const clampY = (v: number) => clamp(v, da.y, da.y + da.h);
 
     // Glow behind line
     ctx.save();
@@ -309,9 +331,9 @@ class ChartEngine {
         const p3 = points[Math.min(i + 2, points.length - 1)];
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          clamp(p1.y + (p2.y - p0.y) * tension),
+          clampY(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          clamp(p2.y - (p3.y - p1.y) * tension),
+          clampY(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -339,9 +361,9 @@ class ChartEngine {
         const p3 = points[Math.min(i + 2, points.length - 1)];
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          clamp(p1.y + (p2.y - p0.y) * tension),
+          clampY(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          clamp(p2.y - (p3.y - p1.y) * tension),
+          clampY(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -372,9 +394,9 @@ class ChartEngine {
         const p3 = points[Math.min(i + 2, points.length - 1)];
         ctx.bezierCurveTo(
           p1.x + (p2.x - p0.x) * tension,
-          clamp(p1.y + (p2.y - p0.y) * tension),
+          clampY(p1.y + (p2.y - p0.y) * tension),
           p2.x - (p3.x - p1.x) * tension,
-          clamp(p2.y - (p3.y - p1.y) * tension),
+          clampY(p2.y - (p3.y - p1.y) * tension),
           p2.x, p2.y
         );
       }
@@ -537,7 +559,8 @@ class ChartEngine {
   }
 
   destroy(): void {
-    window.removeEventListener('resize', this.resizeHandler);
+    if (this.resizeObserver) this.resizeObserver.disconnect();
+    else window.removeEventListener('resize', this._boundWindowResize);
     this.canvas.removeEventListener('mousemove', this._boundMouseMove);
     this.canvas.removeEventListener('mouseleave', this._boundMouseLeave);
     if (this._tooltip) this._tooltip.remove();
@@ -581,10 +604,9 @@ class DonutChart {
     ctx.clearRect(0, 0, w, h);
 
     if (!slices || slices.length === 0) return;
-    const validSlices = slices.filter(s => s.value > 0 && isFinite(s.value));
-    if (validSlices.length === 0) return;
-    const total = validSlices.reduce((sum, s) => sum + s.value, 0);
-    if (total <= 0 || !isFinite(total)) return;
+    // Phase 5 completion: slice-angle math delegates to the tested pure core.
+    const { angles, total } = donutSliceAngles(slices);
+    if (total <= 0 || angles.length === 0) return;
 
     // Outer glow ring
     ctx.beginPath();
@@ -593,15 +615,11 @@ class DonutChart {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    let startAngle = -Math.PI / 2;
-
-    slices.forEach((slice) => {
-      const angle = (slice.value / total) * Math.PI * 2;
-      const endAngle = startAngle + angle;
-
+    for (const slice of angles) {
+      const angle = slice.end - slice.start;
       // Main arc
       ctx.beginPath();
-      ctx.arc(cx, cy, this.radius, startAngle, endAngle);
+      ctx.arc(cx, cy, this.radius, slice.start, slice.end);
       ctx.strokeStyle = slice.color;
       ctx.lineWidth = this.lineWidth;
       ctx.lineCap = 'round';
@@ -610,18 +628,18 @@ class DonutChart {
       // Inner highlight arc
       if (angle > 0.1) {
         ctx.beginPath();
-        ctx.arc(cx, cy, this.radius - 2, startAngle, endAngle);
+        ctx.arc(cx, cy, this.radius - 2, slice.start, slice.end);
         ctx.strokeStyle = hexToRgba(slice.color, 0.25);
         ctx.lineWidth = 4;
         ctx.stroke();
       }
+    }
 
-      startAngle = endAngle;
-    });
-
-    // Background track ring
+    // Background track ring: from the end of the last slice back to top.
+    // (angles is guaranteed non-empty by the early return above.)
+    const trackStart = angles[angles.length - 1].end;
     ctx.beginPath();
-    ctx.arc(cx, cy, this.radius, startAngle, -Math.PI / 2);
+    ctx.arc(cx, cy, this.radius, trackStart, -Math.PI / 2);
     ctx.strokeStyle = this.getTrackColor();
     ctx.lineWidth = this.lineWidth - 2;
     ctx.setLineDash([4, 4]);

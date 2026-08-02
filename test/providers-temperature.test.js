@@ -30,7 +30,7 @@ test('cpu temp: Method 1 — PowerShell Get-Counter (tenths already divided by P
   assert.equal(await getCpuTemperature(), 36);
 });
 
-test('cpu temp: Method 2 — WMIC MSAcpi (tenths of Kelvin converted to Celsius)', async () => {
+test('cpu temp: Method 3 (last resort) — WMIC MSAcpi (tenths of Kelvin converted to Celsius)', async () => {
   mockPlatform('win32');
   mockCommandService({
     runCommand: async (cmd) => {
@@ -88,10 +88,10 @@ test('cpu temp: Linux converts millidegrees from sysfs', async () => {
 // GPU temperature
 // ──────────────────────────────────────────────
 
-test('gpu temp: nvidia-smi path on Windows', async () => {
+test('gpu temp: nvidia-smi path on Windows (shell-free execFile)', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async (cmd) => (cmd.includes('nvidia-smi') ? ok('55\r\n') : fail()),
+    runCommandFile: async (file) => (file === 'nvidia-smi' ? ok('55\r\n') : fail()),
   });
 
   const { getGpuTemperature } = loadProvider('../src/main/providers/temperature.js');
@@ -101,10 +101,8 @@ test('gpu temp: nvidia-smi path on Windows', async () => {
 test('gpu temp: PowerShell WMI fallback when nvidia-smi is missing', async () => {
   mockPlatform('win32');
   mockCommandService({
-    runCommand: async (cmd) => {
-      if (cmd.includes('nvidia-smi')) return fail();
-      return ok('45\r\n');
-    },
+    runCommandFile: async (file) => (file === 'nvidia-smi' ? fail() : ok('')),
+    runCommand: async () => ok('45\r\n'),
   });
 
   const { getGpuTemperature } = loadProvider('../src/main/providers/temperature.js');
@@ -113,8 +111,19 @@ test('gpu temp: PowerShell WMI fallback when nvidia-smi is missing', async () =>
 
 test('gpu temp: returns null when every method fails', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => fail() });
+  mockCommandService({ runCommandFile: async () => fail(), runCommand: async () => fail() });
 
   const { getGpuTemperature } = loadProvider('../src/main/providers/temperature.js');
   assert.equal(await getGpuTemperature(), null);
+});
+
+test('gpu temp: nvidia-smi path on Linux (shell-free execFile)', async () => {
+  mockPlatform('linux');
+  mockCommandService({
+    runCommandFile: async (file) => (file === 'nvidia-smi' ? ok('61\r\n') : fail()),
+    runCommand: async () => fail(),
+  });
+
+  const { getGpuTemperature } = loadProvider('../src/main/providers/temperature.js');
+  assert.equal(await getGpuTemperature(), 61);
 });

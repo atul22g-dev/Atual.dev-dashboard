@@ -18,7 +18,7 @@ export async function update(): Promise<void> {
     clearSectionError('disk');
   } catch (err) {
     console.error('Failed to load disk info:', err);
-    showSectionError('disk', 'Failed to load disk information. Retrying automatically…');
+    showSectionError('disk', 'Failed to load disk information. Retrying automatically…', () => { void update(); });
   }
 }
 

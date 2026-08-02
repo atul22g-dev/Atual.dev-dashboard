@@ -28,11 +28,11 @@ npm install
 # 3. Start the dashboard
 npm start
 
-# 4. Or start with DevTools open (for development)
+# 4. Or run the dev workflow — Vite dev server + Electron with live HMR
 npm run dev
 ```
 
-> **Note:** On Windows, you may see a PowerShell/WMIC command window flash briefly — this is normal. The app uses system commands to gather data.
+> **Note:** On Windows, a PowerShell window may flash briefly — this is normal. Providers probe PowerShell/CIM first (Phase 3) with WMIC kept only as a last resort, and every command runs through the centralized command service with fixed timeouts.
 
 ---
 
@@ -60,8 +60,6 @@ atual-dev-dashboard/
 │   │       └── packages.js            #   npm/pip ops + whitelisted elevation
 │   ├── preload/
 │   │   └── preload.js                 # 🔌 Secure bridge (contextBridge)
-│   ├── preload/
-│   │   └── preload.js                 # 🔌 Secure bridge (contextBridge)
 │   ├── renderer/                      # 🖥️ TypeScript renderer (Vite-built)
 │   │   ├── index.html                 # 📄 HTML shell
 │   │   ├── global.d.ts                # 🧩 window.electronAPI typings
@@ -69,6 +67,7 @@ atual-dev-dashboard/
 │   │   │   ├── app.ts                 # 🎯 App orchestrator (entry point)
 │   │   │   ├── charts.ts              # 📈 Line charts & donut chart engine (DPR-aware)
 │   │   │   ├── gauges.ts              # ⭕ Animated ring gauge component
+│   │   │   ├── math.ts                # 🧮 Pure chart/gauge math (unit-tested)
 │   │   │   ├── utils.ts               # 🧰 Shared DOM/format helpers
 │   │   │   ├── format.ts              # 🎨 Shared formatters (speed, CPU model, errors)
 │   │   │   ├── constants.ts           # ⚙️ Refresh intervals + perf modes + storage keys
@@ -97,16 +96,18 @@ atual-dev-dashboard/
 │       └── contracts.ts               # 📦 Single source of truth for IPC types
 ├── scripts/                         # 🧪 Verification & evidence tooling
 │   ├── evidence.js                  #   Phase 0 measure / capture / all
+│   ├── dev-runner.js                #   🚀 Vite + Electron dev/HMR runner
 │   ├── launch-stability.js          #   Detached 30-min stability launch
 │   ├── stability-harness.js         #   30-min stability test harness
 │   └── verify-phase1.js             #   In-app hostile-package verification
-├── test/                            # 🧪 Unit tests (node --test, 109 tests)
+├── test/                            # 🧪 Unit tests (node --test, 124 tests)
 │   ├── validators.test.js           #   Phase 1 validators
 │   ├── evidence.test.js             #   Phase 0 tool helpers
 │   ├── command-service.test.js      #   Phase 3 command service (8 tests)
 │   ├── ipc.test.js                  #   Phase 5 IPC + preload contract
 │   ├── providers-*.test.js          #   Phase 5 provider tests (7 files)
-│   └── format.test.mjs / utils.test.mjs  # Phase 5 renderer unit tests
+│   ├── format.test.mjs / utils.test.mjs  # Phase 5 renderer unit tests
+│   └── math.test.mjs                #   Phase 5 chart/gauge pure-math tests
 ├── assets/
 │   └── icon.png                     # App icon
 ├── package.json
@@ -136,8 +137,9 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 │                                                           │
 │  • providers/* read system data via `os`, WMI, and the   │
 │    command service (`command-service.js`)                │
-│  • command-service.js centralizes exec(): standardized    │
-│    timeout/maxBuffer/errors — never hangs, never rejects  │
+│  • command-service.js centralizes command execution:
+│    runCommand (shell) + runCommandFile (shell-free execFile),
+│    standardized timeout/maxBuffer/errors — never rejects   │
 │  • ipc.js registers every channel (single registration    │
 │    point — no monolith)                                   │
 │  • Manages the BrowserWindow                              │
@@ -179,9 +181,9 @@ This is an **Electron** app: a web page (HTML + CSS + JS) runs inside a desktop 
 
 ### Reliability (Phase 3)
 
-- **Centralized command execution** — every provider shell call goes through `command-service.js`, which standardizes timeout (10 s default), `maxBuffer` (1 MB), and error normalization. `runCommand()` never rejects — it resolves a predictable result object, so providers use clean `async/await` instead of nested callbacks.
-- **User-visible error states** — sections (disk, processes, network, battery, developer) show an inline ⚠️ banner when data fails to load and clear it automatically on the next successful refresh. No important failure hides in `console.error` alone.
-- **Crash guards** — `uncaughtException` / `unhandledRejection` are logged locally to `<userData>/logs/main-error.log` and pushed to the renderer via `onMainError()`, which displays a fixed banner (auto-hides after 10 s). A main-process `uncaughtException` also closes the app shortly after the banner (the process state is unknown at that point); `unhandledRejection` is recoverable and keeps running.
+- **Centralized command execution** — every provider command goes through `command-service.js`, which standardizes timeout (10 s default), `maxBuffer` (1 MB), and error normalization. `runCommand()` never rejects — it resolves a predictable result object, so providers use clean `async/await` instead of nested callbacks. A shell-free `runCommandFile(file, args)` path (plain `execFile`) handles pmset/ioreg/nvidia-smi/reg query/sysctl/PowerShell probes; Windows providers are CIM/PowerShell-first with WMIC demoted to last resort.
+- **User-visible error states** — sections (disk, processes, network, battery, developer) show an inline ⚠️ banner — with a **Retry** button — when data fails to load, and clear it automatically on the next successful refresh. No important failure hides in `console.error` alone.
+- **Crash guards + toast queue** — `uncaughtException` / `unhandledRejection` are logged locally to `<userData>/logs/main-error.log` and pushed to the renderer via `onMainError()`, which shows a dismissible toast stack (max 4 visible). A main-process `uncaughtException` also closes the app shortly after the alert (the process state is unknown at that point); `unhandledRejection` is recoverable and keeps running.
 
 ### Security
 
@@ -246,7 +248,7 @@ Manage globally installed npm and pip packages:
 - **Animated ring gauge** — Battery level with gradient colors (red → yellow → green)
 - **Power status** — Charging, discharging, AC power, estimated runtime
 - **Charge/discharge rate** — Calculated from level history over time
-- **Detailed stats** — Design capacity, cycle count, voltage, chemistry (from WMI)
+- **Detailed stats** — Design capacity, cycle count, voltage, chemistry (CIM/PowerShell first, WMIC fallback)
 
 **File:** `battery-section.ts`
 
@@ -280,7 +282,7 @@ Manage globally installed npm and pip packages:
 | ✅ **CPU/GPU temperature** | Platform-specific thermal monitoring |
 | ✅ **Network speed** | Real-time download/upload rate monitoring |
 | ✅ **Secure** | `contextIsolation`, `sandbox`, no `nodeIntegration`, validated IPC inputs |
-| ✅ **Reliable** | Centralized command service (timeouts, no hangs), user-visible error banners per section, crash-guard logging + renderer alerts |
+| ✅ **Reliable** | Centralized command service (timeouts, no hangs), CIM-first providers, per-section error banners with Retry, dismissible toast alerts, crash-guard logging |
 
 ---
 
@@ -291,11 +293,11 @@ Manage globally installed npm and pip packages:
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch the dashboard |
-| `npm run dev` | Launch with DevTools open |
+| `npm run dev` | Dev workflow: Vite dev server (port 5173) + Electron, live HMR, both killed on exit |
 | `npm run typecheck` | Strict TypeScript check (`tsc --noEmit`) |
 | `npm run build` | Build the renderer with Vite |
 | `npm run check` | Typecheck + unit tests |
-| `npm test` | Run unit tests (node --test, 109 tests) |
+| `npm test` | Run unit tests (node --test, 124 tests) |
 | `npm run test:smoke` | Build + boot the real app inside Electron (0 console errors) |
 | `npm run doctor` | Run React Doctor code-quality scan |
 | `npm run script:Phase1` | In-app security verification (boots real app, hostile probes) |
@@ -323,11 +325,11 @@ npx react-doctor@latest --scope changed
 ### Testing
 
 ```bash
-npm test        # 109 unit tests (node --test, zero external deps)
+npm test        # 124 unit tests (node --test, zero external deps)
 npm run test:smoke   # boots the real app inside Electron end-to-end
 ```
 
-Unit tests cover: Phase 1 input validators, Phase 0 evidence-tool helpers, Phase 3 command-service (timeout/maxBuffer normalization, fallback chains), Phase 5 provider parsing for all 7 providers (fake command-service — no real shell/network calls), the IPC ↔ preload channel contract (every renderer-callable channel must have a main-process registration), and renderer format/utils helpers (imported straight from the `.ts` source).
+Unit tests cover: Phase 1 input validators, Phase 0 evidence-tool helpers, Phase 3 command-service (timeout/maxBuffer normalization, fallback chains, shell-free `runCommandFile` execFile path), Phase 5 provider parsing for all 7 providers (fake command-service — no real shell/network calls), the IPC ↔ preload channel contract (every renderer-callable channel must have a main-process registration), renderer format/utils helpers (imported straight from the `.ts` source), and pure chart/gauge math (`math.ts`).
 
 ### Project Conventions
 
@@ -351,7 +353,7 @@ The project follows a phased modernization plan:
 | `plan.md` | Master roadmap: 11 phases from baseline → stable release |
 | `plan-phase.md` | Living tracker: status, evidence, measurements, progress log |
 
-**Status:** Phases 0–9 complete (baseline, security, architecture, reliability, TypeScript+Vite renderer, testing & CI, low-end performance, UI modernization, Windows-native, packaging scaffolding). Phase 10 (final optimization & release candidate) is partially validated — see `plan-phase.md` for the full evidence log and the honestly documented deferred items (real code signing, live auto-update server, low-end/DPI/multi-monitor physical testing).
+**Status:** Phases 0–9 complete (baseline, security, architecture, reliability, TypeScript+Vite renderer, testing & CI, low-end performance, UI modernization, Windows-native, packaging scaffolding). **Phase 10 in progress** — automated validation green (124/124 tests, typecheck, Vite build, Electron smoke), dependency audit run (12 vulns in electron-builder's build-time devDep chain — no non-breaking fix; runtime deps clean), 30-min stability re-run launched (result pending). All cross-phase deferred engineering items were closed 2026-08-02: shell-free `execFile` (`runCommandFile`), CIM-first providers, per-section Retry, toast queue, chart/gauge math tests, ResizeObserver + RAF-coalesced redraws, DocumentFragment list rendering, and the Vite dev-server/HMR flow. Remaining deferrals need release infrastructure (real code signing, live auto-update server) or physical hardware (low-end/DPI/multi-monitor testing) — see `plan-phase.md` for the full evidence log.
 
 ---
 

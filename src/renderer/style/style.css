@@ -277,30 +277,78 @@ body.theme-transition *::after {
   font-size: 14px;
 }
 
-/* 🛡️ Phase 3 — global main-process crash banner (fixed, above the app) */
-.main-error-banner {
+/* Phase 3 completion — Retry button on the section error banner
+   (Loading → Success → Error → Retry state machine). */
+.section-error .section-error-retry {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.section-error .section-error-retry:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fff;
+}
+
+/* 🛡️ Phase 3 completion — dismissible toast stack for main-process issues.
+   Multiple errors queue (capped at 4) instead of overwriting each other. */
+.toast-stack {
   position: fixed;
   top: 56px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-8px);
+  right: 16px;
   z-index: 1000;
-  max-width: 80%;
-  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(360px, 80vw);
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid rgba(239, 68, 68, 0.5);
   border-radius: var(--radius-md);
-  background: rgba(20, 8, 10, 0.92);
+  background: rgba(20, 8, 10, 0.94);
   color: var(--danger);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   opacity: 0;
-  pointer-events: none;
+  transform: translateX(12px);
+  pointer-events: auto;
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
-.main-error-banner.visible {
+.toast.visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(0);
+}
+.toast-message { flex: 1; word-break: break-word; }
+.toast-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+.toast-dismiss:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
+.toast-info {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(10, 18, 32, 0.94);
+  color: var(--info);
 }
 
 /* ══════════════════════════════════════════

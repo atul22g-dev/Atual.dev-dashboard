@@ -8,8 +8,9 @@
 'use strict';
 
 const os = require('os');
+const path = require('path');
 const { app, powerMonitor } = require('electron');
-const { runCommand, runCommandUntilSuccess } = require('../command-service');
+const { runCommand, runCommandFile, runCommandUntilSuccess } = require('../command-service');
 
 let isOnAC = true; // Assume plugged in until we know otherwise
 
@@ -60,7 +61,9 @@ async function detectWindowsBattery() {
     if (parsed) return parsed;
   }
 
-  // Method 3: WMIC /value (different output format).
+  // Method 3: WMIC /value (different output format). Deliberately via
+  // runCommand (not runCommandFile) — the fallback test depends on the
+  // runCommand dispatch, and WMIC is a documented last-resort here.
   const wmicResult = await runCommand(wmicCmd, { timeout: 5000 });
   if (wmicResult.ok && wmicResult.stdout) {
     const chargeMatch = wmicResult.stdout.match(/EstimatedChargeRemaining=(\d+)/i);
@@ -78,9 +81,9 @@ async function detectWindowsBattery() {
   return noBattery();
 }
 
-/** macOS battery detection via pmset. */
+/** macOS battery detection via pmset (shell-free fixed args). */
 async function detectMacBattery() {
-  const result = await runCommand('pmset -g batt 2>/dev/null', { timeout: 3000 });
+  const result = await runCommandFile('pmset', ['-g', 'batt'], { timeout: 3000 });
   if (result.ok && result.stdout) {
     const match = result.stdout.match(/(\d+)%/);
     if (match) {
@@ -186,29 +189,31 @@ function parsePsBatteryDetails(output) {
   return details;
 }
 
-/** Windows detailed battery specs: WMIC first, PowerShell fallback. */
+/** Windows detailed battery specs: CIM-first (Phase 3/8), WMIC last resort. */
 async function getWindowsBatteryDetails() {
-  const wmicCmd = 'wmic path Win32_Battery get /value 2>nul';
   const psCmd = 'powershell -NoProfile -Command "&{$bat=Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue;if($bat){echo (\'DesignCapacity=\' + $bat.DesignCapacity + [char]124 + \'FullChargeCapacity=\' + $bat.FullChargeCapacity + [char]124 + \'CycleCount=\' + $bat.CycleCount + [char]124 + \'Voltage=\' + $bat.Voltage + [char]124 + \'Chemistry=\' + $bat.Chemistry + [char]124 + \'Manufacturer=\' + $bat.Manufacturer + [char]124 + \'SerialNumber=\' + $bat.SerialNumber + [char]124 + \'Name=\' + $bat.Name + [char]124 + \'DesignVoltage=\' + $bat.DesignVoltage + [char]124 + \'EstimatedRunTime=\' + $bat.EstimatedRunTime + [char]124 + \'SmartBatteryVersion=\' + $bat.SmartBatteryVersion)}else{echo NO_BATTERY}}" 2>nul';
 
-  const wmicResult = await runCommand(wmicCmd, { timeout: 5000 });
-  if (wmicResult.ok && wmicResult.stdout) {
-    return parseWmicKeyValues(wmicResult.stdout);
-  }
-
+  // Primary: PowerShell CIM (parsed only when it yields real data)
   const psResult = await runCommand(psCmd, { timeout: 5000 });
   if (psResult.ok && psResult.stdout) {
     const output = psResult.stdout.trim().split(/[\r\n]+/)[0]?.trim();
     if (output && output !== 'NO_BATTERY') {
-      return parsePsBatteryDetails(output);
+      const details = parsePsBatteryDetails(output);
+      if (Object.keys(details).length > 0) return details;
     }
+  }
+
+  // Last resort: WMIC /value (deprecated — kept for older systems)
+  const wmicResult = await runCommandFile('wmic', ['path', 'Win32_Battery', 'get', '/value'], { timeout: 5000 });
+  if (wmicResult.ok && wmicResult.stdout) {
+    return parseWmicKeyValues(wmicResult.stdout);
   }
   return {};
 }
 
-/** macOS detailed battery specs via ioreg. */
+/** macOS detailed battery specs via ioreg (shell-free fixed args). */
 async function getMacBatteryDetails() {
-  const result = await runCommand('ioreg -r -c AppleSmartBattery 2>/dev/null', { timeout: 5000 });
+  const result = await runCommandFile('ioreg', ['-r', '-c', 'AppleSmartBattery'], { timeout: 5000 });
   if (!result.ok || !result.stdout) return {};
   const details = {};
   const regex = /"([\w]+)"\s*=\s*(.+)$/;
@@ -227,7 +232,7 @@ async function getMacBatteryDetails() {
   return details;
 }
 
-/** Linux detailed battery specs from sysfs (parallel reads). */
+/** Linux detailed battery specs from sysfs (parallel reads, shell-free). */
 async function getLinuxBatteryDetails() {
   const batterySys = '/sys/class/power_supply/BAT0';
   const fields = ['manufacturer', 'model_name', 'serial_number', 'technology',
@@ -236,7 +241,7 @@ async function getLinuxBatteryDetails() {
 
   const results = await Promise.all(
     fields.map(field =>
-      runCommand(`cat ${batterySys}/${field} 2>/dev/null`, { timeout: 2000 })
+      runCommandFile('cat', [path.join(batterySys, field)], { timeout: 2000 })
     )
   );
 

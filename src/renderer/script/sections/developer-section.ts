@@ -66,7 +66,7 @@ async function loadPackages(): Promise<void> {
     console.error('Failed to load packages:', err);
     const body = document.getElementById('pkgListBody');
     if (body) body.innerHTML = '<div class="pkg-loading">Failed to load packages. Make sure npm/pip is installed.</div>';
-    showSectionError('developer', 'Failed to load the package list. Make sure npm/pip is installed and reachable.');
+    showSectionError('developer', 'Failed to load the package list. Make sure npm/pip is installed and reachable.', () => { void loadPackages(); });
   } finally {
     isLoadingPackages = false;
   }

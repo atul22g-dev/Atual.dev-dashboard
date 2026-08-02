@@ -6,7 +6,11 @@
    (plan.md §7 "Command service").
 
    API:
-     runCommand(cmd, opts)             → { ok, code, stdout, stderr, message }
+     runCommand(cmd, opts)              → { ok, code, stdout, stderr, message }
+     runCommandFile(file, args, opts)   → same result, but via execFile with
+                                          NO shell (Phase 1/3 carry-over:
+                                          prefer shell-free execution where
+                                          practical)
      runCommandUntilSuccess(cmds, opts) → first ok result (or last failure)
 
    Unlike the raw `exec` callback API, runCommand NEVER throws for a
@@ -16,11 +20,23 @@
 
 'use strict';
 
+const { exec, execFile } = require('child_process');
 const { execAsync } = require('./exec-async');
 
 /** Defaults applied when a caller doesn't override them. */
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_MAX_BUFFER = 1024 * 1024;
+
+/** Normalize an exec/execFile error into the shared result shape. */
+function toResult(error) {
+  return {
+    ok: false,
+    code: typeof error.code === 'number' ? error.code : null,
+    stdout: String(error.stdout || ''),
+    stderr: String(error.stderr || ''),
+    message: error.message || 'Command failed',
+  };
+}
 
 /**
  * Run a single shell command with explicit timeout + maxBuffer.
@@ -46,13 +62,49 @@ async function runCommand(command, options = {}) {
       message: '',
     };
   } catch (error) {
+    return toResult(error);
+  }
+}
+
+/**
+ * Run an executable directly with an args array and NO shell (execFile).
+ * Phase 1 §1.3 / Phase 3 carry-over: prefer this over shell `exec` whenever
+ * the command is a plain binary + fixed args (no pipes, redirects, or
+ * variable expansion). Eliminates cmd.exe/POSIX shell interpretation of
+ * renderer-adjacent data entirely.
+ *
+ * Same normalized result shape as runCommand(); never rejects.
+ *
+ * @param {string} file executable path or name resolved via PATH
+ * @param {string[]} [args]
+ * @param {{ timeout?: number, maxBuffer?: number }} [options]
+ * @returns {Promise<{ ok: boolean, code: number|null, stdout: string, stderr: string, message: string }>}
+ */
+async function runCommandFile(file, args = [], options = {}) {
+  const timeout = Number.isFinite(options.timeout) && options.timeout > 0 ? options.timeout : DEFAULT_TIMEOUT_MS;
+  const maxBuffer = Number.isFinite(options.maxBuffer) && options.maxBuffer > 0 ? options.maxBuffer : DEFAULT_MAX_BUFFER;
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      execFile(file, args, { timeout, maxBuffer }, (error, stdout, stderr) => {
+        if (error) {
+          error.stdout = stdout;
+          error.stderr = stderr;
+          reject(error);
+          return;
+        }
+        resolve({ stdout, stderr });
+      });
+    });
     return {
-      ok: false,
-      code: typeof error.code === 'number' ? error.code : null,
-      stdout: String(error.stdout || ''),
-      stderr: String(error.stderr || ''),
-      message: error.message || 'Command failed',
+      ok: true,
+      code: 0,
+      stdout: String(result.stdout || ''),
+      stderr: String(result.stderr || ''),
+      message: '',
     };
+  } catch (error) {
+    return toResult(error);
   }
 }
 
@@ -78,6 +130,7 @@ async function runCommandUntilSuccess(commands, options = {}) {
 
 module.exports = {
   runCommand,
+  runCommandFile,
   runCommandUntilSuccess,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_MAX_BUFFER,

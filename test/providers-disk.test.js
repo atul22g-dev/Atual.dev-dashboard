@@ -21,12 +21,14 @@ const ok = okResult;
 const fail = failResult;
 
 // ──────────────────────────────────────────────
-// Windows — WMIC CSV primary path
+// Windows — PowerShell CIM PRIMARY path (Phase 3/8: wmic is last resort)
 // ──────────────────────────────────────────────
 
-test('disk: parses WMIC CSV output on Windows', async () => {
+test('disk: parses PowerShell CIM output on Windows (primary)', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => ok('Node,DeviceID,Size,FreeSpace\r\nWINPC,C:,2147483648,1073741824\r\nWINPC,D:,1073741824,536870912\r\n') });
+  mockCommandService({
+    runCommandFile: async (file) => (file === 'powershell' ? ok('C:,2147483648,1073741824\r\nD:,1073741824,536870912\r\n') : fail()),
+  });
 
   const { getDiskInfo } = loadProvider('../src/main/providers/disk.js');
   const disks = await getDiskInfo();
@@ -41,17 +43,17 @@ test('disk: parses WMIC CSV output on Windows', async () => {
 });
 
 // ──────────────────────────────────────────────
-// Windows — PowerShell fallback (WMIC failed)
+// Windows — WMIC last-resort fallback (CIM failed)
 // ──────────────────────────────────────────────
 
-test('disk: falls back to PowerShell when WMIC fails on Windows', async () => {
+test('disk: falls back to WMIC CSV when PowerShell CIM fails on Windows', async () => {
   mockPlatform('win32');
   let calls = 0;
   mockCommandService({
-    runCommand: async () => {
+    runCommandFile: async (file) => {
       calls++;
-      if (calls === 1) return fail(); // wmic primary
-      return ok('C:,2147483648,1073741824\r\n'); // powershell fallback
+      if (file === 'powershell') return fail(); // CIM primary
+      return ok('Node,DeviceID,Size,FreeSpace\r\nWINPC,C:,2147483648,1073741824\r\n'); // wmic fallback
     },
   });
 
@@ -62,6 +64,21 @@ test('disk: falls back to PowerShell when WMIC fails on Windows', async () => {
   assert.equal(disks.length, 1);
   assert.equal(disks[0].mount, 'C:');
   assert.equal(disks[0].total, 2147483648);
+});
+
+test('disk: parses WMIC CSV output on Windows (last resort)', async () => {
+  mockPlatform('win32');
+  mockCommandService({
+    runCommandFile: async (file) => (file === 'powershell' ? fail() : ok('Node,DeviceID,Size,FreeSpace\r\nWINPC,C:,2147483648,1073741824\r\n')),
+  });
+
+  const { getDiskInfo } = loadProvider('../src/main/providers/disk.js');
+  const disks = await getDiskInfo();
+
+  assert.equal(disks.length, 1);
+  assert.equal(disks[0].mount, 'C:');
+  assert.equal(disks[0].total, 2147483648);
+  assert.equal(disks[0].used, 1073741824);
 });
 
 // ──────────────────────────────────────────────
@@ -115,7 +132,7 @@ test('disk: parses df --output on Linux (source,size,used,avail,target)', async 
 
 test('disk: returns [] when every detection method fails', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => fail() });
+  mockCommandService({ runCommandFile: async () => fail() });
 
   const { getDiskInfo } = loadProvider('../src/main/providers/disk.js');
   const disks = await getDiskInfo();
@@ -124,7 +141,7 @@ test('disk: returns [] when every detection method fails', async () => {
 
 test('disk: silently ignores garbage output (never throws)', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => ok('not,a,valid,disk,row\r\n') });
+  mockCommandService({ runCommandFile: async () => ok('not,a,valid,disk,row\r\n') });
 
   const { getDiskInfo } = loadProvider('../src/main/providers/disk.js');
   const disks = await getDiskInfo();

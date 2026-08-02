@@ -61,9 +61,9 @@ test('system: getSystemInfo CPU usage increases between snapshots (second call)'
 // getVirtualMemory
 // ──────────────────────────────────────────────
 
-test('system: getVirtualMemory parses Windows WMI KB output', async () => {
+test('system: getVirtualMemory parses Windows WMI KB output (shell-free)', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => ok('8388608,4194304\r\n') });
+  mockCommandService({ runCommandFile: async () => ok('8388608,4194304\r\n') });
 
   const { getVirtualMemory } = loadProvider('../src/main/providers/system.js');
   const vm = await getVirtualMemory();
@@ -73,9 +73,9 @@ test('system: getVirtualMemory parses Windows WMI KB output', async () => {
   assert.equal(vm.used, (8388608 - 4194304) * 1024);
 });
 
-test('system: getVirtualMemory parses Linux /proc/meminfo swap lines', async () => {
+test('system: getVirtualMemory parses Linux /proc/meminfo swap lines (shell-free)', async () => {
   mockPlatform('linux');
-  mockCommandService({ runCommand: async () => ok('SwapTotal: 8388608 kB\nSwapFree: 4194304 kB\n') });
+  mockCommandService({ runCommandFile: async () => ok('SwapTotal: 8388608 kB\nSwapFree: 4194304 kB\n') });
 
   const { getVirtualMemory } = loadProvider('../src/main/providers/system.js');
   const vm = await getVirtualMemory();
@@ -85,9 +85,9 @@ test('system: getVirtualMemory parses Linux /proc/meminfo swap lines', async () 
   assert.equal(vm.used, (8388608 - 4194304) * 1024);
 });
 
-test('system: getVirtualMemory parses macOS sysctl swapusage (G units)', async () => {
+test('system: getVirtualMemory parses macOS sysctl swapusage (G units, shell-free)', async () => {
   mockPlatform('darwin');
-  mockCommandService({ runCommand: async () => ok('total = 8.00G  used = 2.00G  free = 6.00G  (encrypted)') });
+  mockCommandService({ runCommandFile: async () => ok('total = 8.00G  used = 2.00G  free = 6.00G  (encrypted)') });
 
   const { getVirtualMemory } = loadProvider('../src/main/providers/system.js');
   const vm = await getVirtualMemory();
@@ -100,8 +100,18 @@ test('system: getVirtualMemory parses macOS sysctl swapusage (G units)', async (
 
 test('system: getVirtualMemory returns null when the command fails', async () => {
   mockPlatform('win32');
-  mockCommandService({ runCommand: async () => fail() });
+  mockCommandService({ runCommandFile: async () => fail() });
 
   const { getVirtualMemory } = loadProvider('../src/main/providers/system.js');
   assert.equal(await getVirtualMemory(), null);
+});
+
+test('system: getSystemInfo snapshot still builds when shell-free calls return empty', () => {
+  mockPlatform('win32');
+  mockCommandService({ runCommandFile: async () => ok('') });
+
+  const { getSystemInfo } = loadProvider('../src/main/providers/system.js');
+  const info = getSystemInfo();
+  assert.equal(typeof info.osEdition, 'string');
+  assert.equal(typeof info.osDisplayVersion, 'string');
 });

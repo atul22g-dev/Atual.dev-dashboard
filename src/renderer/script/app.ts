@@ -257,26 +257,62 @@ window.electronAPI.onUnmaximize(() => updateMaximizeIcon(false));
 
 // ──────────────────────────────────────────────
 // 🛡️ MAIN-PROCESS CRASH GUARD NOTIFICATIONS (Phase 3)
+// Phase 3 completion: single banner → dismissible toast stack, so multiple
+// main-process issues queue instead of overwriting each other.
 // ──────────────────────────────────────────────
 
-type BannerEl = HTMLElement & { _hideTimer?: number };
+type ToastEl = HTMLElement & { _hideTimer?: number };
 
-function showMainErrorBanner(message: string): void {
-  let banner = document.getElementById('mainErrorBanner') as BannerEl | null;
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id = 'mainErrorBanner';
-    banner.className = 'main-error-banner';
-    document.body.appendChild(banner);
+function getToastStack(): HTMLElement {
+  let stack = document.getElementById('toastStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toastStack';
+    stack.className = 'toast-stack';
+    document.body.appendChild(stack);
   }
-  banner.textContent = `⚠️ Main process issue: ${message}`;
-  banner.classList.add('visible');
-  clearTimeout(banner._hideTimer);
-  banner._hideTimer = setTimeout(() => banner!.classList.remove('visible'), 10000);
+  return stack;
+}
+
+function showToast(message: string, kind: 'error' | 'info' = 'error'): void {
+  const stack = getToastStack();
+  const toast = document.createElement('div') as ToastEl;
+  toast.className = `toast toast-${kind}`;
+
+  const text = document.createElement('span');
+  text.className = 'toast-message';
+  text.textContent = kind === 'error' ? `⚠️ ${message}` : message;
+  toast.appendChild(text);
+
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'toast-dismiss';
+  dismiss.setAttribute('aria-label', 'Dismiss notification');
+  dismiss.textContent = '✕';
+  dismiss.addEventListener('click', () => {
+    clearTimeout(toast._hideTimer);
+    toast.remove();
+    // Drop the empty stack container once the last toast is gone.
+    if (!stack.hasChildNodes()) stack.remove();
+  });
+  toast.appendChild(dismiss);
+
+  stack.appendChild(toast);
+  // Cap the queue so a burst of errors can't cover the whole UI.
+  while (stack.children.length > 4) stack.firstElementChild?.remove();
+
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  toast._hideTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => {
+      toast.remove();
+      if (!stack.hasChildNodes()) stack.remove();
+    }, 300);
+  }, 10000);
 }
 
 window.electronAPI.onMainError((payload) => {
-  showMainErrorBanner(payload?.message || 'Unknown main-process error');
+  showToast(payload?.message || 'Unknown main-process error');
 });
 
 // ──────────────────────────────────────────────
@@ -413,8 +449,11 @@ function stopAutoRefresh(): void {
   if (netSpeedInterval) { clearInterval(netSpeedInterval); netSpeedInterval = null; }
   window.electronAPI.removeMaximizeListeners();
   window.electronAPI.removeMainErrorListeners();
-  const banner = document.getElementById('mainErrorBanner') as BannerEl | null;
-  if (banner) { clearTimeout(banner._hideTimer); banner.remove(); }
+  const stack = document.getElementById('toastStack');
+  if (stack) {
+    stack.querySelectorAll<ToastEl>('.toast').forEach(t => clearTimeout(t._hideTimer));
+    stack.remove();
+  }
   cpuLineChart?.destroy();
   memLineChart?.destroy();
   vmLineChart?.destroy();

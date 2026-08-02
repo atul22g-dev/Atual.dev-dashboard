@@ -63,10 +63,14 @@ export function toggleMetricClass(className: string, condition: unknown, element
 /**
  * Show a user-visible error banner at the top of a dashboard section.
  * (Phase 3 — no important failure should only appear in console.error.)
+ * Phase 3 completion: the banner carries an optional Retry button so the
+ * user can immediately re-trigger the failed fetch (Loading → Success →
+ * Error → Retry state machine) instead of waiting for the auto-refresh.
  * @param sectionId e.g. 'disk', 'network', 'processes', 'battery'
  * @param message human-readable failure text
+ * @param onRetry optional zero-arg callback wired to the Retry button
  */
-export function showSectionError(sectionId: string, message: string): void {
+export function showSectionError(sectionId: string, message: string, onRetry?: () => void): void {
   const section = document.getElementById(`section-${sectionId}`);
   if (!section) return;
   let banner = section.querySelector<HTMLElement>('.section-error');
@@ -75,7 +79,22 @@ export function showSectionError(sectionId: string, message: string): void {
     banner.className = 'section-error';
     section.prepend(banner);
   }
-  banner.textContent = message;
+  banner.replaceChildren();
+  const text = document.createElement('span');
+  text.textContent = message;
+  banner.appendChild(text);
+  if (onRetry) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'section-error-retry';
+    btn.textContent = '↻ Retry';
+    btn.setAttribute('aria-label', 'Retry loading this section');
+    btn.addEventListener('click', () => {
+      clearSectionError(sectionId);
+      onRetry();
+    });
+    banner.appendChild(btn);
+  }
   banner.style.display = 'flex';
 }
 

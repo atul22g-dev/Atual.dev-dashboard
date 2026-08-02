@@ -3,6 +3,7 @@
    ============================================================ */
 
 import { hexToRgba } from './utils.js';
+import { clamp, valueToPercent, percentToRadians, gradientColor } from './math.js';
 
 export interface RingGaugeOptions {
   ringWidth?: number;
@@ -74,24 +75,11 @@ export class RingGauge {
 
   getGradientColor(percentage: number): string {
     const { lowThreshold, midThreshold, lowColor, midColor, highColor } = this.options;
-    if (percentage <= lowThreshold) return lowColor;
-    if (percentage >= midThreshold) return highColor;
-    const t = (percentage - lowThreshold) / (midThreshold - lowThreshold);
-    return this.lerpColor(lowColor, midColor, t);
-  }
-
-  lerpColor(a: string, b: string, t: number): string {
-    const ar = parseInt(a.slice(1, 3), 16);
-    const ag = parseInt(a.slice(3, 5), 16);
-    const ab = parseInt(a.slice(5, 7), 16);
-    const br = parseInt(b.slice(1, 3), 16);
-    const bg = parseInt(b.slice(3, 5), 16);
-    const bb = parseInt(b.slice(5, 7), 16);
-    return `rgb(${Math.round(ar + (br - ar) * t)}, ${Math.round(ag + (bg - ag) * t)}, ${Math.round(ab + (bb - ab) * t)})`;
+    return gradientColor(percentage, { lowThreshold, midThreshold, lowColor, midColor, highColor });
   }
 
   setValue(val: number): void {
-    const clamped = Math.max(this.options.min, Math.min(this.options.max, val));
+    const clamped = clamp(val, this.options.min, this.options.max);
     this.options.value = clamped;
     if (!this._isAnimating) {
       this._isAnimating = true;
@@ -125,8 +113,8 @@ export class RingGauge {
     ctx.clearRect(0, 0, w, h);
 
     const currentValue = immediate ? opts.value : opts.animatedValue;
-    const percentage = ((currentValue - opts.min) / (opts.max - opts.min)) * 100;
-    const angle = (percentage / 100) * Math.PI * 2;
+    const percentage = valueToPercent(currentValue, opts.min, opts.max);
+    const angle = percentToRadians(percentage);
 
     const ringWidth = opts.ringWidth;
     const spacing = opts.ringSpacing;

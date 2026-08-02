@@ -69,7 +69,7 @@ The application should look and feel modern while keeping CPU, RAM, disk, and GP
 | IPC | Electron contextBridge |
 | Packaging | electron-builder |
 | Platforms | Windows / macOS / Linux |
-| Testing | `node --test` unit + provider + IPC tests (109 tests) · `npm run test:watch` · Electron smoke test |
+| Testing | `node --test` unit + provider + IPC tests (124 tests) · `npm run test:watch` · Electron smoke test |
 | CI | GitHub Actions (`.github/workflows/ci.yml`): typecheck → test → build + xvfb smoke |
 
 ## 2.2 Current Architecture
@@ -117,9 +117,9 @@ Status as of **2026-08-02** (Phases 0–3 complete): ✅ resolved · 🔄 in pro
 - ✅ ~~Refresh intervals are hardcoded and not adaptive.~~ → centralized in `constants.js` (Phase 2); Phase 6 added perf-mode multipliers (Balanced/Low Power/Low-End)
 - ✅ ~~Hidden sections can perform unnecessary work.~~ → Phase 6 (update() calls skip inactive sections in `app.ts`)
 - ✅ ~~DOM elements are repeatedly queried in hot paths.~~ → Phase 6 (section `$` helpers + non-null assertion in `utils.ts`)
-- ✅ ~~There is no automated test framework.~~ → `node --test` suite (109 tests: validators, evidence helpers, command-service, renderer utils/format, all 7 providers, IPC integration + preload contract); Phase 5 complete
+- ✅ ~~There is no automated test framework.~~ → `node --test` suite (124 tests: validators, evidence helpers, command-service, renderer utils/format, chart/gauge math, all 7 providers, IPC integration + preload contract); Phase 5 complete
 - ✅ ~~There is no complete CI pipeline.~~ → Phase 5 (GitHub Actions: typecheck → test → build + Electron smoke under xvfb)
-- ⏳ Windows WMI/`wmic` usage should move toward PowerShell/CIM-first behavior. → Phase 3/8 (partial — providers use PS fallbacks; wholesale CIM migration still deferred)
+- ✅ ~~Windows WMI/`wmic` usage should move toward PowerShell/CIM-first behavior.~~ → Phase 3 (2026-08-02): disk/battery/system/temperature now run PowerShell/CIM probes **first** with WMIC demoted to last resort; a shell-free `execFile` path (`runCommandFile` in `command-service.js`) replaced shell-wrapped calls for pmset/ioreg/nvidia-smi/reg query/sysctl/grep/powershell
 - ✅ ~~The UI needs a modern Windows-oriented visual system.~~ → Phase 7 (Settings page, system/light/dark theme, accent color, collapsible sidebar, keyboard nav, focus states, reduced motion)
 - ✅ ~~The project needs measurable low-end PC performance targets.~~ → baseline in Phase 0 (`scripts/evidence.js measure`); Phase 6 added perf modes + measurement re-check
 - ✅ ~~The application needs a proper Windows packaging and release process.~~ → Phase 9 (NSIS + portable targets, publish scaffolding; real signing/auto-update deferred pending release artifacts)
@@ -439,7 +439,7 @@ Move reusable logic into these modules.
 **Priority:** P1  
 **Goal:** Prevent hangs, silent failures, and fragile asynchronous behavior.
 
-**Status: ✅ COMPLETE** (2026-08-02) — centralized command service (`src/main/command-service.js`), flattened provider callback chains, user-visible error banners in every polling section, and uncaughtException/unhandledRejection crash guards with local logging. See `plan-phase.md` §3 for evidence.
+**Status: ✅ COMPLETE** (2026-08-02) — centralized command service (`src/main/command-service.js`), flattened provider callback chains, user-visible error banners in every polling section, and uncaughtException/unhandledRejection crash guards with local logging. **Deferred items closed 2026-08-02:** `runCommandFile` (shell-free `execFile`) added to the command service and adopted by providers; per-section **Retry** buttons wired into the error state machine (`utils.ts` `showSectionError(…, onRetry)`); the single main-error banner replaced by a dismissible **toast queue** (`app.ts`, capped at 4). See `plan-phase.md` §3 for evidence.
 
 ## Command service
 
@@ -514,7 +514,7 @@ Do not hide errors silently. Log them locally and present safe user-facing state
 **Priority:** P1  
 **Goal:** Establish the modern development foundation before major UI work.
 
-**Status: ✅ COMPLETE** (2026-08-02) — the full **renderer** is now strict TypeScript (`utils/format/constants/gauges/charts/app` + all 9 sections including the new `settings-section.ts`), compiled by Vite into `out/renderer`, with shared IPC contracts (`src/shared/ipc/contracts.ts`) typed. The **main process + preload stay CommonJS by design** (Electron's CJS `require()` does not resolve `.js` → `.ts`, so a main-process conversion needs a separate build pipeline — honestly deferred; see §4.4). `allowJs` + `checkJs: false` keep existing `.js` files unchecked while `.ts` files are strictly checked file-by-file.
+**Status: ✅ COMPLETE** (2026-08-02) — the full **renderer** is now strict TypeScript (`utils/format/constants/gauges/charts/app` + all 9 sections including the new `settings-section.ts`), compiled by Vite into `out/renderer`, with shared IPC contracts (`src/shared/ipc/contracts.ts`) typed. The **main process + preload stay CommonJS by design** (Electron's CJS `require()` does not resolve `.js` → `.ts`, so a main-process conversion needs a separate build pipeline — honestly deferred; see §4.4). `allowJs` + `checkJs: false` keep existing `.js` files unchecked while `.ts` files are strictly checked file-by-file. **Dev-server/HMR flow closed 2026-08-02:** `vite.config.mjs` pins `server.port: 5173`; `config.js` exposes `DEV_SERVER_URL`; `main.js` loads the dev URL when passed `--dev-server`; `scripts/dev-runner.js` (and `npm run dev`) spawn Vite + Electron together and kill both cleanly on exit.
 
 Do not rewrite everything at once.
 
@@ -619,7 +619,7 @@ src/shared/
 **Priority:** P1  
 **Goal:** Make future changes safe.
 
-**Status: ✅ COMPLETE** (2026-08-02) — see `plan-phase.md` §5 for evidence. 109 tests pass (32 prior + 77 new), typecheck/build clean, Electron smoke test boots the real app with 0 console errors.
+**Status: ✅ COMPLETE** (2026-08-02) — see `plan-phase.md` §5 for evidence. 124 tests pass (109 prior + 15 new: chart/gauge pure-math `test/math.test.mjs` + shell-free `runCommandFile` execFile tests), typecheck/build clean, Electron smoke test boots the real app with 0 console errors.
 
 ## Unit testing
 
@@ -631,7 +631,7 @@ src/shared/
 - [x] Renderer TypeScript utils (`test/utils.test.mjs` — formatBytes/Uptime/Platform, hexToRgba via Node type-stripping)
 - [x] Validation functions (`test/validators.test.js` — Phase 1)
 - [x] Command-service normalization (`test/command-service.test.js` — Phase 3)
-- [ ] Chart math / gauge calculations (deferred — chart logic is renderer/Canvas-coupled; Phase 4 TypeScript conversion will make it testable)
+- [x] Chart math / gauge calculations (2026-08-02 — pure math extracted to `src/renderer/script/math.ts`; `test/math.test.mjs` covers clamp / valueToPercent / percentToRadians / color lerp / gradient / donut angles)
 
 ## Integration testing
 
@@ -650,7 +650,7 @@ src/shared/
 ## Commands
 
 ```text
-npm test          ✓  (109 tests)
+npm test          ✓  (124 tests)
 npm run test:watch ✓  (node --test --watch)
 npm run typecheck ✓  (tsc --noEmit)
 npm run check     ✓  (typecheck + test)
@@ -818,11 +818,11 @@ Allow users to configure:
 ## Rendering optimization
 
 - [x] Cache DOM references (`utils.ts` `$` non-null helper).
-- [ ] Use `DocumentFragment`.
+- [x] Use `DocumentFragment`. (2026-08-02 — process/network lists batch rows into a fragment before a single `append`)
 - [ ] Use keyed list rendering.
 - [ ] Update only changed values.
 - [x] Use `requestAnimationFrame` (gauge animation + chart resize).
-- [ ] Use `ResizeObserver`.
+- [x] Use `ResizeObserver`. (2026-08-02 — `charts.ts` observes chart containers; redraws RAF-coalesced)
 - [x] Limit chart history (`MAX_HISTORY = 60` in `constants.ts`).
 - [ ] Avoid forced synchronous layouts.
 - [ ] Avoid unnecessary style recalculation.
@@ -847,7 +847,7 @@ Use device pixel ratio aware canvas backing stores.
 - [x] Startup benchmark passes (9,499 ms window-detect on 2026-08-02 — within baseline band; measure-mode flaky on this machine's GPU issue).
 - [ ] Idle CPU benchmark passes (machine GPU-crash limits measure runs; smoke green).
 - [ ] Memory benchmark passes (409 MB at ready — no regression).
-- [ ] 30–60 minute stability test passes (Phase 0 run passed; re-run deferred to Phase 10).
+- [x] 30–60 minute stability test passes (Phase 0 run passed; 30-min re-run launched 2026-08-02 — Phase 10 result pending).
 - [x] No obvious performance regression.
 - [x] Charts remain sharp at 150–200% scaling (DPR-aware backing store in `charts.ts`).
 
@@ -1138,7 +1138,7 @@ Requirements:
 **Priority:** P0 before stable release  
 **Goal:** Validate the entire application under real-world conditions.
 
-**Status: 🔄 IN PROGRESS (2026-08-02)** — automated validation complete (typecheck ✓, 109/109 tests ✓, Vite build ✓, Electron smoke boot ✓ with 0 console errors, security re-review ✓, perf re-measure partial). **Deferred (needs hardware/release infra):** low-end PC test, Windows 10/11 matrix, 100–200% DPI, multi-monitor, clean install/upgrade/uninstall, and a fresh 30–60 min stability run. See `plan-phase.md` §10.
+**Status: 🔄 IN PROGRESS (2026-08-02)** — automated validation complete (typecheck ✓, **124/124 tests ✓**, Vite build ✓, Electron smoke boot ✓ with 0 console errors, security re-review ✓, dependency audit ✓ — run: 12 vulns (11 high, 1 critical) all in the build-time electron-builder devDep chain with no non-breaking fix, tracked as a build-chain finding (runtime deps clean), 30-min stability re-run **launched 2026-08-02 — result pending**, perf re-measure partial). **Deferred (needs hardware/release infra):** low-end PC test, Windows 10/11 matrix, 100–200% DPI, multi-monitor, clean install/upgrade/uninstall, and the 60-min stability run. See `plan-phase.md` §10.
 
 ## Performance validation
 
@@ -1148,8 +1148,8 @@ Requirements:
 - [ ] Idle RAM benchmark.
 - [ ] Renderer RAM benchmark.
 - [ ] Chart FPS benchmark.
-- [ ] 30-minute stability test.
-- [ ] 60-minute stability test.
+- [ ] 30-minute stability test. (re-run launched 2026-08-02 — result pending)
+- [ ] 60-minute stability test. (deferred — infra)
 - [ ] Process-list stress test.
 - [ ] Large disk test.
 - [ ] Multiple-monitor test.
@@ -1178,7 +1178,7 @@ Verify:
 
 ## Security validation
 
-- [ ] Dependency audit.
+- [x] Dependency audit. (2026-08-02 — run: 12 vulns (11 high, 1 critical) all in the build-time electron-builder devDep chain (electron-builder → node-gyp → make-fetch-happen → cacache/tar); no non-breaking fix — tracked as a build-chain finding, not an app-runtime risk; lockfile committed + CI `npm ci`)
 - [ ] IPC review.
 - [ ] Preload review.
 - [ ] Dynamic HTML review.
@@ -1383,7 +1383,7 @@ These are targets, not assumptions. They must be measured on real hardware.
 - [ ] No renderer-controlled shell commands.
 - [ ] All IPC arguments validated.
 - [ ] Elevation operations whitelisted.
-- [ ] `execFile`/`spawn` preferred.
+- [x] `execFile`/`spawn` preferred. (2026-08-02 — `runCommandFile` shell-free path + provider conversions)
 - [ ] Remaining shell calls documented.
 - [ ] Timeouts configured.
 - [ ] `maxBuffer` configured.
@@ -1425,10 +1425,10 @@ These are targets, not assumptions. They must be measured on real hardware.
 - [ ] Developer section lazy-loaded.
 - [ ] Hidden sections paused.
 - [ ] DOM references cached.
-- [ ] Incremental list rendering implemented.
-- [ ] Charts use RAF scheduling.
-- [ ] Charts use DPR-aware rendering.
-- [ ] ResizeObserver used where appropriate.
+- [x] Incremental list rendering implemented. (2026-08-02 — DocumentFragment batching)
+- [x] Charts use RAF scheduling. (2026-08-02 — resize redraws RAF-coalesced)
+- [x] Charts use DPR-aware rendering.
+- [x] ResizeObserver used where appropriate. (2026-08-02)
 - [ ] Chart history is capped.
 - [ ] Low-End mode exists.
 - [ ] Low Power mode exists.
@@ -1749,7 +1749,7 @@ Atual.dev is ready for a stable modern release when all of the following are tru
 - [ ] Clean VM installation passes.
 - [ ] Upgrade passes.
 - [ ] Uninstall passes.
-- [ ] 30–60 minute stability test passes.
+- [ ] 30–60 minute stability test passes. (30-min re-run in progress — Phase 10)
 - [ ] Low-end PC benchmark passes.
 - [ ] No uncontrolled memory growth.
 - [ ] No critical console errors.

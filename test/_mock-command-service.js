@@ -23,10 +23,13 @@ const { mock } = require('node:test');
 const CMD_SVC_PATH = require.resolve('../src/main/command-service.js');
 
 /** Replace command-service exports in require.cache with a fake. */
-function mockCommandService({ runCommand, runCommandUntilSuccess } = {}) {
+function mockCommandService({ runCommand, runCommandFile, runCommandUntilSuccess } = {}) {
   const fake = {
     runCommand:
       runCommand ||
+      (async () => ({ ok: true, code: 0, stdout: '', stderr: '', message: '' })),
+    runCommandFile:
+      runCommandFile ||
       (async () => ({ ok: true, code: 0, stdout: '', stderr: '', message: '' })),
     runCommandUntilSuccess:
       runCommandUntilSuccess ||

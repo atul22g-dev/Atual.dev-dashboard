@@ -44,6 +44,9 @@ export function update(info: SystemInfo): void {
     return;
   }
 
+  // Phase 6 completion: build all rows into a DocumentFragment and attach
+  // once, so a 20-row rebuild is a single layout/reflow instead of 20.
+  const fragment = document.createDocumentFragment();
   info.allInterfaces.slice(0, 20).forEach(net => {
     const row = document.createElement('div');
     row.className = 'network-row';
@@ -79,8 +82,9 @@ export function update(info: SystemInfo): void {
     intSpan.textContent = net.internal ? 'Yes' : 'No';
     row.appendChild(intSpan);
 
-    table.appendChild(row);
+    fragment.appendChild(row);
   });
+  table.appendChild(fragment);
 }
 
 export async function loadNetworkSpeed(): Promise<void> {
@@ -91,7 +95,7 @@ export async function loadNetworkSpeed(): Promise<void> {
     clearSectionError('network');
   } catch (err) {
     console.error('Failed to load network speed:', err);
-    showSectionError('network', 'Failed to read network speeds. Retrying automatically…');
+    showSectionError('network', 'Failed to read network speeds. Retrying automatically…', () => { void loadNetworkSpeed(); });
   }
 }
 

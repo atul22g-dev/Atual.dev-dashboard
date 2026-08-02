@@ -25,7 +25,7 @@
 // 📦 Import required modules
 const { app, BrowserWindow, nativeImage, Tray, Menu, globalShortcut, Notification } = require('electron');
 const fs = require('fs');
-const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML } = require('./config');
+const { WINDOW, ICON_PATH, PRELOAD_PATH, RENDERER_HTML, DEV_SERVER_URL } = require('./config');
 const { registerIpcHandlers } = require('./ipc');
 const { logError } = require('./logger');
 const { getPreferences, setPreferences } = require('./preferences');
@@ -177,15 +177,21 @@ function createWindow() {
     }
   });
 
-  // 📄 Load the dashboard HTML file (Phase 4: Vite-built bundle)
-  if (!fs.existsSync(RENDERER_HTML)) {
-    // Loud, actionable failure instead of a blank/broken window: the renderer
-    // is TypeScript-compiled now, so the source HTML cannot run standalone.
-    console.error('[main] Renderer build not found at:', RENDERER_HTML);
-    console.error('[main] Run `npm run build` (Vite) before starting the app.');
-    logError('missing-renderer-build', `Run 'npm run build' — expected ${RENDERER_HTML}`);
+  // 📄 Load the dashboard renderer (Phase 4: Vite-built bundle; Phase 4
+  // completion: `--dev-server` loads the Vite dev server for HMR instead).
+  if (process.argv.includes('--dev-server')) {
+    console.log('[main] Loading renderer from Vite dev server:', DEV_SERVER_URL);
+    mainWindow.loadURL(DEV_SERVER_URL);
+  } else {
+    if (!fs.existsSync(RENDERER_HTML)) {
+      // Loud, actionable failure instead of a blank/broken window: the renderer
+      // is TypeScript-compiled now, so the source HTML cannot run standalone.
+      console.error('[main] Renderer build not found at:', RENDERER_HTML);
+      console.error('[main] Run `npm run build` (Vite) before starting the app.');
+      logError('missing-renderer-build', `Run 'npm run build' — expected ${RENDERER_HTML}`);
+    }
+    mainWindow.loadFile(RENDERER_HTML);
   }
-  mainWindow.loadFile(RENDERER_HTML);
 
   // 🔧 Open DevTools when running with --dev flag
   // Usage: npm run dev

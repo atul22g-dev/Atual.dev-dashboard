@@ -5,9 +5,9 @@
    so IPC + window creation run normally), then for the configured
    duration (default 30 min):
 
-     1. Every 30 s: navigates to the next section in a 7-section
+     1. Every 30 s: navigates to the next section in an 8-section
         cycle (overview → performance → developer → network →
-        disk → processes → battery → …)
+        disk → processes → battery → settings → …)
      2. Every 4th cycle: toggles dark/light theme
      3. Every 8th cycle: resizes, minimizes, restores, maximizes
      4. Samples total Electron RAM (working set) + CPU time via
@@ -61,7 +61,7 @@ function resolveDurationMs() {
 }
 const DURATION_MS = resolveDurationMs();
 const SAMPLE_INTERVAL_MS = 30000;
-const SECTIONS = ['overview', 'performance', 'developer', 'network', 'disk', 'processes', 'battery'];
+const SECTIONS = ['overview', 'performance', 'developer', 'network', 'disk', 'processes', 'battery', 'settings'];
 const CPUS = os.cpus().length;
 
 function log(msg) {

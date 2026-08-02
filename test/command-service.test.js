@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 
 const {
   runCommand,
+  runCommandFile,
   runCommandUntilSuccess,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_MAX_BUFFER,
@@ -55,6 +56,30 @@ test('runCommand honors custom timeout (kills the command, never hangs)', async 
   const elapsedMs = Date.now() - start;
   assert.equal(result.ok, false);
   assert.notEqual(result.code, 0); // killed by signal (null) or non-zero exit
+  assert.ok(elapsedMs < 5000, `expected early kill, took ${elapsedMs}ms`);
+});
+
+test('runCommandFile resolves ok:true with stdout for a successful execFile (no shell)', async () => {
+  // process.execPath + fixed args = the canonical shell-free call pattern.
+  const result = await runCommandFile(process.execPath, ['-e', 'process.stdout.write("execfile-ok")']);
+  assert.equal(result.ok, true);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /execfile-ok/);
+  assert.equal(result.message, '');
+});
+
+test('runCommandFile resolves ok:false for a missing executable (never rejects)', async () => {
+  const result = await runCommandFile('definitely-not-a-real-exe-xyz', ['--flag']);
+  assert.equal(result.ok, false);
+  assert.equal(typeof result.message, 'string');
+  assert.ok(result.message.length > 0);
+});
+
+test('runCommandFile honors custom timeout (kills the child, never hangs)', async () => {
+  const start = Date.now();
+  const result = await runCommandFile(process.execPath, ['-e', 'setTimeout(()=>{},5000)'], { timeout: 200 });
+  const elapsedMs = Date.now() - start;
+  assert.equal(result.ok, false);
   assert.ok(elapsedMs < 5000, `expected early kill, took ${elapsedMs}ms`);
 });
 

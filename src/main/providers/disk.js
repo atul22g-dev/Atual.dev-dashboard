@@ -6,7 +6,7 @@
 'use strict';
 
 const os = require('os');
-const { runCommand } = require('../command-service');
+const { runCommand, runCommandFile } = require('../command-service');
 
 /** Parse WMIC CSV disk output (Windows). */
 function parseWmicCsv(stdout) {
@@ -77,33 +77,35 @@ async function getDiskInfo() {
     const platform = os.platform();
 
     // 🖥️ Platform-specific commands
-    // Windows: Try WMIC first, fall back to PowerShell (WMIC is deprecated on newer Win11)
-    // macOS/Linux: Use 'df' to show disk free space
-    let cmd;
+    // Windows: CIM-first (Phase 3/8) — PowerShell Get-CimInstance is PRIMARY;
+    // WMIC (deprecated on Win11) is only the last-resort fallback. Both run
+    // shell-free via execFile (runCommandFile).
+    // macOS/Linux: Use 'df' to show disk free space.
     if (platform === 'win32') {
-      cmd = 'wmic logicaldisk get caption,size,freespace /format:csv';
-    } else if (platform === 'darwin') {
-      cmd = 'df -k | tail -n +2';
-    } else {
-      cmd = 'df -B1 --output=source,size,used,avail,target 2>/dev/null | tail -n +2';
+      // Primary: CIM (fixed args, no shell) — no `2>nul` needed: execFile
+      // captures stderr into the result instead of printing it.
+      const psScript = 'Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 3 } | ForEach-Object { $_.DeviceID + \',\' + $_.Size + \',\' + $_.FreeSpace }';
+      const psResult = await runCommandFile('powershell', ['-NoProfile', '-Command', psScript], { timeout: 5000 });
+      if (psResult.ok && psResult.stdout) {
+        const disks = parsePsDisks(psResult.stdout);
+        if (disks.length > 0) return disks;
+      }
+      // Last resort: WMIC CSV (deprecated — kept for old systems only).
+      const wmicResult = await runCommandFile('wmic', ['logicaldisk', 'get', 'caption,size,freespace', '/format:csv'], { timeout: 5000 });
+      if (wmicResult.ok && wmicResult.stdout) {
+        const disks = parseWmicCsv(wmicResult.stdout);
+        if (disks.length > 0) return disks;
+      }
+      return [];
     }
 
-    // ⚙️ Execute the command (with timeout & maxBuffer for safety)
+    // macOS/Linux: df (pipes need a shell, so runCommand is correct here)
+    const cmd = platform === 'darwin'
+      ? 'df -k | tail -n +2'
+      : 'df -B1 --output=source,size,used,avail,target 2>/dev/null | tail -n +2';
     const result = await runCommand(cmd, { timeout: 5000 });
     if (result.ok && result.stdout) {
-      if (platform === 'win32') {
-        return parseWmicCsv(result.stdout);
-      }
       return parseDf(result.stdout, platform);
-    }
-
-    // Primary command failed — try PowerShell fallback on Windows
-    if (platform === 'win32') {
-      const psCmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 3 } | ForEach-Object { $_.DeviceID + \',\' + $_.Size + \',\' + $_.FreeSpace }" 2>nul';
-      const psResult = await runCommand(psCmd, { timeout: 5000 });
-      if (psResult.ok && psResult.stdout) {
-        return parsePsDisks(psResult.stdout);
-      }
     }
     return [];
   } catch (e) {

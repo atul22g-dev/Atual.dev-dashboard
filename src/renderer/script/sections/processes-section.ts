@@ -24,7 +24,7 @@ export async function update(): Promise<void> {
     clearSectionError('processes');
   } catch (err) {
     console.error('Failed to load processes:', err);
-    showSectionError('processes', 'Failed to load the process list. Retrying automatically…');
+    showSectionError('processes', 'Failed to load the process list. Retrying automatically…', () => { void update(); });
   } finally {
     isLoadingProcesses = false;
   }
@@ -54,6 +54,9 @@ export function renderProcesses(processes: ProcessInfo[], filter: string): void 
 
   const maxMem = Math.max(...filtered.map(p => p.memory), 1);
 
+  // Phase 6 completion: build all rows into a DocumentFragment and attach
+  // once, so a 30-row rebuild is a single layout/reflow instead of 30.
+  const fragment = document.createDocumentFragment();
   filtered.forEach(proc => {
     const row = document.createElement('div');
     row.className = 'process-row';
@@ -80,8 +83,9 @@ export function renderProcesses(processes: ProcessInfo[], filter: string): void 
     barWrap.appendChild(barFill);
 
     row.append(pid, name, cpu, mem, barWrap);
-    tbody.appendChild(row);
+    fragment.appendChild(row);
   });
+  tbody.appendChild(fragment);
 
   $('processTotal').textContent = String(filtered.length);
   const totalMem = filtered.reduce((s, p) => s + p.memory, 0);

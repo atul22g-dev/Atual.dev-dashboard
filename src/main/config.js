@@ -36,6 +36,11 @@ const PRELOAD_PATH = path.join(__dirname, '..', 'preload', 'preload.js');
 // is deliberately NO fallback — main.js warns loudly if this is missing.
 const RENDERER_HTML = path.join(__dirname, '..', '..', 'out', 'renderer', 'index.html');
 
+// Phase 4 completion — HMR dev flow: `npm run dev` serves the renderer from
+// this URL (vite.config.mjs `server.port`) and main.js loads it instead of
+// the built file when launched with --dev-server.
+const DEV_SERVER_URL = 'http://localhost:5173';
+
 /** Process-list safety limits (used by providers/processes.js). */
 const PROCESS_SCAN_LIMIT = 50;
 const PROCESS_RESULT_LIMIT = 30;
@@ -45,6 +50,7 @@ module.exports = {
   ICON_PATH,
   PRELOAD_PATH,
   RENDERER_HTML,
+  DEV_SERVER_URL,
   PROCESS_SCAN_LIMIT,
   PROCESS_RESULT_LIMIT,
 };

@@ -8,7 +8,7 @@
 'use strict';
 
 const os = require('os');
-const { runCommand } = require('../command-service');
+const { runCommand, runCommandFile } = require('../command-service');
 
 /** Parse a plain numeric temperature line, valid range 1-119 °C. */
 function parseTempValue(stdout) {
@@ -17,7 +17,7 @@ function parseTempValue(stdout) {
   return null;
 }
 
-/** Windows CPU temperature: 3 methods tried in order. */
+/** Windows CPU temperature: methods tried in order (CIM-first, Phase 3/8). */
 async function detectWindowsCpuTemp() {
   // Method 1 (BEST): PowerShell Get-Counter with Temperature counter
   // Counter returns tenths of °C (e.g. 356 = 35.6°C), so we divide by 10
@@ -29,7 +29,15 @@ async function detectWindowsCpuTemp() {
     if (v !== null) return v;
   }
 
-  // Method 2: WMIC MSAcpi (returns tenths of Kelvin → convert to Celsius)
+  // Method 2: PowerShell Win32_PerfFormattedData (CIM, preferred over WMIC)
+  const psCmd3 = 'powershell -NoProfile -Command "try{$t=Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction Stop|Select -First 1 -ExpandProperty Temperature;if($t -gt 0){if($t -lt 120){$t}else{[math]::Round(($t/10)-273.15)}}else{-1}}catch{echo -1}" 2>nul';
+  const r3 = await runCommand(psCmd3, { timeout: 3000 });
+  if (r3.ok && r3.stdout) {
+    const v = parseTempValue(r3.stdout);
+    if (v !== null) return v;
+  }
+
+  // Method 3 (last resort): WMIC MSAcpi (deprecated; returns tenths of Kelvin)
   const wmicCmd = 'wmic /namespace:\\\\root\\wmi PATH MSAcpi_ThermalZoneTemperature get CurrentTemperature /format:csv 2>nul';
   const r2 = await runCommand(wmicCmd, { timeout: 3000 });
   if (r2.ok && r2.stdout) {
@@ -42,14 +50,6 @@ async function detectWindowsCpuTemp() {
         if (celsius > 0 && celsius < 120) return celsius;
       }
     }
-  }
-
-  // Method 3: PowerShell Win32_PerfFormattedData (fallback)
-  const psCmd3 = 'powershell -NoProfile -Command "try{$t=Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction Stop|Select -First 1 -ExpandProperty Temperature;if($t -gt 0){if($t -lt 120){$t}else{[math]::Round(($t/10)-273.15)}}else{-1}}catch{echo -1}" 2>nul';
-  const r3 = await runCommand(psCmd3, { timeout: 3000 });
-  if (r3.ok && r3.stdout) {
-    const v = parseTempValue(r3.stdout);
-    if (v !== null) return v;
   }
 
   return -1;
@@ -92,18 +92,17 @@ async function getCpuTemperature() {
   }
 }
 
-/** Windows GPU temperature: nvidia-smi → PowerShell WMI. */
+/** Windows GPU temperature: nvidia-smi → PowerShell CIM. */
 async function detectWindowsGpuTemp() {
-  // Method 1: nvidia-smi (best for NVIDIA GPUs, very fast)
-  const nvidiaCmd = 'nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>nul';
-  const r1 = await runCommand(nvidiaCmd, { timeout: 3000 });
+  // Method 1: nvidia-smi (best for NVIDIA GPUs, very fast) — shell-free
+  const r1 = await runCommandFile('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader'], { timeout: 3000 });
   if (r1.ok && r1.stdout) {
     const v = parseInt(r1.stdout.trim());
     if (v && v > 0 && v < 120) return v;
   }
 
   // Method 2: PowerShell - query Win32_PerfFormattedData_GPU (AMD/Intel)
-  // Note: This WMI class may not exist on all systems
+  // Note: This CIM class may not exist on all systems
   const psCmd = 'powershell -NoProfile -Command "try{$g=Get-CimInstance -Namespace root\\cimv2\\drivers\\gpu -ClassName Win32_PerfFormattedData_GPU_Adapter -ErrorAction Stop;if($g -and $g.Length -gt 0){$maxTemp=0;foreach($adapter in $g){if($adapter.CurrentTemperature -gt $maxTemp){$maxTemp=$adapter.CurrentTemperature}};if($maxTemp -gt 0){echo $maxTemp}else{-1}}else{-1}}catch{echo -1}" 2>nul';
   const r2 = await runCommand(psCmd, { timeout: 3000 });
   if (r2.ok && r2.stdout) {
@@ -115,8 +114,8 @@ async function detectWindowsGpuTemp() {
 
 /** Linux GPU temperature: nvidia-smi → lm-sensors. */
 async function detectLinuxGpuTemp() {
-  const nvidiaCmd = 'nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null';
-  const r1 = await runCommand(nvidiaCmd, { timeout: 3000 });
+  // nvidia-smi runs shell-free (fixed args, no shell needed)
+  const r1 = await runCommandFile('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader'], { timeout: 3000 });
   if (r1.ok && r1.stdout) {
     const v = parseInt(r1.stdout.trim());
     if (v && v > 0 && v < 120) return v;

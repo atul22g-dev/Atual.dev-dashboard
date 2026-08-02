@@ -15,9 +15,10 @@
                 inline polyfill script if the bundle ever gained a
                 dynamic import() — this prevents that CSP breakage.
 
-   This is a production build only for now; a `vite dev` server +
-   HMR flow is a later refinement. CommonJS main/preload are NOT
-   built here — they stay plain .js (converted last in Phase 4).
+   A `vite dev` server + HMR flow (Phase 4 completion) is available via
+   `npm run dev` (scripts/dev-runner.js spawns Vite then Electron pointing
+   at the dev URL). CommonJS main/preload are NOT built here — they stay
+   plain .js (converted last in Phase 4).
    ============================================================ */
 
 import { defineConfig } from 'vite';
@@ -29,6 +30,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root: path.join(__dirname, 'src', 'renderer'),
   base: './',
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
   build: {
     outDir: path.join(__dirname, 'out', 'renderer'),
     emptyOutDir: true,

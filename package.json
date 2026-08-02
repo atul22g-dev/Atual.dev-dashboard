@@ -5,7 +5,9 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "npm run build && electron .",
-    "dev": "npm run build && electron . --dev",
+    "dev": "node scripts/dev-runner.js",
+    "dev:renderer": "vite",
+    "dev:app": "npm run build && electron . --dev-server",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
